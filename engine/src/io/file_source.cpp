@@ -40,7 +40,7 @@ public:
         if (!GetFileSizeEx(handle_, &size)) {
             const DWORD error = GetLastError();
             CloseHandle(handle_);
-            throw_system_error(ErrorCode::Io, "cannot read the size of " + path.u8string(), error);
+            throw_system_error(ErrorCode::Io, "cannot read the size of " + path.u8string(), static_cast<int>(error));
         }
         size_ = static_cast<std::uint64_t>(size.QuadPart);
     }

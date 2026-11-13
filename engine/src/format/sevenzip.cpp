@@ -15,6 +15,7 @@
 #include <exception>
 #include <map>
 #include <set>
+#include <utility>
 
 namespace digzip::format {
 
@@ -446,7 +447,7 @@ private:
     // Runs `attempt` with each password in turn, starting with the last one that worked. 7z has no
     // password check value: a wrong key shows up as invalid compressed data or a CRC mismatch.
     template <typename Attempt>
-    auto with_password(const Attempt& attempt)
+    decltype(std::declval<const Attempt&>()()) with_password(const Attempt& attempt)
     {
         const std::vector<std::string>& passwords = monitor_.passwords();
         if (passwords.empty()) {

@@ -47,3 +47,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
   with authentication code check), 7z AES-256 including encrypted headers. Several passwords can be
   given; they are tried in order and never appear in messages. Cryptographic primitives come from the
   system: CNG on Windows, CommonCrypto on macOS, OpenSSL 3 elsewhere.
+- Hardening: `DIGZIP_ENABLE_SANITIZERS` (AddressSanitizer, and UndefinedBehaviorSanitizer outside
+  MSVC), fuzz targets for whole archives, DigZip's own decoders and the path rules (libFuzzer, or a
+  replay-and-mutate driver run by CTest), CI jobs running the tests under ASan + UBSan and the
+  fuzzers with libFuzzer, hostile-header fixtures (absurd entry counts and metadata sizes).
+- The code builds without warnings with Clang (`-Wconversion`, `-Wsign-conversion`) and MinGW.
+- Documentation: README usage and library examples, security model in `docs/security.md`.

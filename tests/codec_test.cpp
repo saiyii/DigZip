@@ -65,7 +65,7 @@ TEST_CASE("DigZip's inflater matches zlib on stored, fixed and dynamic blocks")
         {9, Z_RLE},
         {9, Z_HUFFMAN_ONLY},
     }));
-    const std::size_t chunk = GENERATE(1, 7, 4096, 1 << 20);
+    const auto chunk = static_cast<std::size_t>(GENERATE(1, 7, 4096, 1 << 20));
     CAPTURE(level, strategy, chunk);
 
     const auto data = sample_data();

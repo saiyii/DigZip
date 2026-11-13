@@ -76,8 +76,10 @@ TEST_CASE("tar archives extract with exact content")
 
     // Stored time is 2023-11-14: restored files must be far older than the extraction itself.
     const auto mtime = fs::last_write_time(out / "hello.txt");
-    CHECK(mtime == fs::last_write_time(out / "docs/readme.md"));
-    CHECK(fs::file_time_type::clock::now() - mtime > std::chrono::hours(24 * 365));
+    const bool same_time = mtime == fs::last_write_time(out / "docs/readme.md");
+    const bool restored = fs::file_time_type::clock::now() - mtime > std::chrono::hours(24 * 365);
+    CHECK(same_time);
+    CHECK(restored);
 }
 
 TEST_CASE("tar extraction is verified by test()")

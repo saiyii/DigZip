@@ -434,6 +434,30 @@ def make_7z_fixtures():
     non_solid[40] ^= 0xFF
     write("corrupt-non-solid.7z", bytes(non_solid))
 
+def make_hostile_header_fixtures():
+    """Headers announcing absurd counts or sizes: they must be refused without allocating."""
+    # ZIP: the end record claims 65535 entries in a 46-byte central directory.
+    zip_bytes = bytearray(build_zip([ZipEntry("a.txt", b"a")]))
+    end = zip_bytes.rfind(b"PK\x05\x06")
+    struct.pack_into("<HH", zip_bytes, end + 8, 0xFFFF, 0xFFFF)
+    write("hostile-zip-count.zip", bytes(zip_bytes))
+
+    # 7z: a plain header announcing 2^40 files.
+    header = b"\x01\x05" + sz_number(1 << 40) + b"\x00\x00"
+    start = struct.pack("<QQI", 0, len(header), zlib.crc32(header))
+    write("hostile-7z-count.7z",
+          b"7z\xbc\xaf\x27\x1c\x00\x04" + struct.pack("<I", zlib.crc32(start)) + start + header)
+
+    # TAR: a pax extended header claiming 8 GiB of records.
+    info = tarfile.TarInfo("././@PaxHeader")
+    info.type = tarfile.XHDTYPE
+    info.size = 8 << 30
+    block = bytearray(info.tobuf(tarfile.GNU_FORMAT))
+    write("hostile-tar-pax.tar", bytes(block) + bytes(1024))
+
+    # gzip: a file name field longer than any real one.
+    write("hostile-gz-name.gz", b"\x1f\x8b\x08\x08\x00\x00\x00\x00\x00\xff" + b"n" * 20000 + b"\x00")
+
 
 def main():
     basic = make_tar(basic_tree)
@@ -530,6 +554,7 @@ def main():
 
     make_zip_fixtures()
     make_7z_fixtures()
+    make_hostile_header_fixtures()
 
 
 if __name__ == "__main__":

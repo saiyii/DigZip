@@ -57,3 +57,88 @@ jobs:
 
       - name: Test
         run: ctest --preset ci
+
+  sanitizers:
+    name: ASan + UBSan
+    runs-on: ubuntu-latest
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg-cache
+      VCPKG_DISABLE_METRICS: 1
+      CC: clang
+      CXX: clang++
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Fetch vcpkg at the manifest baseline
+        run: |
+          baseline=$(sed -n 's/.*"builtin-baseline": *"\([0-9a-f]*\)".*/\1/p' vcpkg.json)
+          git clone https://github.com/microsoft/vcpkg.git "$VCPKG_ROOT"
+          git -C "$VCPKG_ROOT" checkout "$baseline"
+          mkdir -p "$VCPKG_DEFAULT_BINARY_CACHE"
+          "$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics
+          sudo apt-get update && sudo apt-get install -y libssl-dev clang
+
+      - name: Restore vcpkg binary cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: vcpkg-clang-${{ hashFiles('vcpkg.json') }}
+          restore-keys: vcpkg-clang-
+
+      - name: Build and test
+        run: |
+          cmake --preset asan
+          cmake --build --preset asan
+          ctest --preset asan
+
+  fuzz:
+    name: Fuzzing (libFuzzer, 2 minutes per target)
+    runs-on: ubuntu-latest
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg-cache
+      VCPKG_DISABLE_METRICS: 1
+      CC: clang
+      CXX: clang++
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Fetch vcpkg at the manifest baseline
+        run: |
+          baseline=$(sed -n 's/.*"builtin-baseline": *"\([0-9a-f]*\)".*/\1/p' vcpkg.json)
+          git clone https://github.com/microsoft/vcpkg.git "$VCPKG_ROOT"
+          git -C "$VCPKG_ROOT" checkout "$baseline"
+          mkdir -p "$VCPKG_DEFAULT_BINARY_CACHE"
+          "$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics
+          sudo apt-get update && sudo apt-get install -y libssl-dev clang
+
+      - name: Restore vcpkg binary cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: vcpkg-clang-${{ hashFiles('vcpkg.json') }}
+          restore-keys: vcpkg-clang-
+
+      - name: Build
+        run: |
+          cmake --preset fuzz
+          cmake --build --preset fuzz
+
+      - name: Fuzz
+        run: |
+          for target in archive codecs paths; do
+            mkdir -p "corpus/$target"
+            "build/fuzz/bin/fuzz_$target" -max_total_time=120 -rss_limit_mb=2048 -timeout=30 \
+              "corpus/$target" tests/fixtures
+          done
+
+      - name: Keep crashing inputs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-findings
+          path: |
+            crash-*
+            timeout-*
+            oom-*

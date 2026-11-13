@@ -122,3 +122,16 @@ TEST_CASE("damaged archives of every format never crash the engine")
         }
     }
 }
+
+TEST_CASE("headers announcing absurd counts or sizes are refused without allocating")
+{
+    const auto [name, code] = GENERATE(table<std::string, ErrorCode>({
+        {"hostile-zip-count.zip", ErrorCode::Corrupt},
+        {"hostile-7z-count.7z", ErrorCode::Corrupt},
+        {"hostile-tar-pax.tar", ErrorCode::Corrupt},
+        {"hostile-gz-name.gz", ErrorCode::Corrupt},
+    }));
+    CAPTURE(name);
+    const Report report = test(fixtures::path(name));
+    CHECK(fixtures::has_issue(report, code));
+}

@@ -15,7 +15,7 @@ namespace digzip::codec {
 
 namespace {
 
-constexpr int kMaxBits = 15;
+constexpr std::size_t kMaxBits = 15;
 constexpr std::size_t kWindowSize = 1 << 16;
 constexpr std::size_t kWindowMask = kWindowSize - 1;
 
@@ -47,14 +47,14 @@ struct Huffman {
             ++count[lengths[i]];
         }
         int left = 1;
-        for (int len = 1; len <= kMaxBits; ++len) {
+        for (std::size_t len = 1; len <= kMaxBits; ++len) {
             left = (left << 1) - count[len];
             if (left < 0) {
                 corrupt("over-subscribed Huffman code");
             }
         }
         std::array<std::uint16_t, kMaxBits + 1> offset{};
-        for (int len = 1; len < kMaxBits; ++len) {
+        for (std::size_t len = 1; len < kMaxBits; ++len) {
             offset[len + 1] = static_cast<std::uint16_t>(offset[len] + count[len]);
         }
         for (int i = 0; i < n; ++i) {
@@ -122,7 +122,7 @@ private:
         int code = 0;
         int first = 0;
         int index = 0;
-        for (int len = 1; len <= kMaxBits; ++len) {
+        for (std::size_t len = 1; len <= kMaxBits; ++len) {
             code |= static_cast<int>(bits(1));
             const int count = h.count[len];
             if (code - count < first) {

@@ -726,7 +726,7 @@ private:
                 }
             } else {
                 s = one_state(c);
-                freq(s) = static_cast<std::uint8_t>(freq(s) + ((num_stats(suffix(c)) == 0) & (freq(s) < 24)));
+                freq(s) = static_cast<std::uint8_t>(freq(s) + (num_stats(suffix(c)) == 0 && freq(s) < 24 ? 1 : 0));
             }
             const std::uint32_t next = successor(s);
             if (next != up_branch) {
@@ -1191,7 +1191,7 @@ io::StreamPtr decode_ppmd8_zip(io::StreamPtr upstream, std::uint64_t size, std::
 {
     std::uint8_t header[2];
     upstream->read_exact(header, sizeof header);
-    const unsigned value = header[0] | (header[1] << 8);
+    const auto value = static_cast<unsigned>(header[0] | (header[1] << 8));
     const unsigned order = (value & 0x0F) + 1;
     const std::uint32_t memory = (((value >> 4) & 0xFF) + 1) << 20;
     const unsigned restore = value >> 12;

@@ -1,6 +1,10 @@
 {
   "version": 3,
-  "cmakeMinimumRequired": { "major": 3, "minor": 21, "patch": 0 },
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 21,
+    "patch": 0
+  },
   "configurePresets": [
     {
       "name": "base",
@@ -12,13 +16,17 @@
       "name": "dev",
       "displayName": "Development (Debug)",
       "inherits": "base",
-      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
     },
     {
       "name": "release",
       "displayName": "Release",
       "inherits": "base",
-      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
     },
     {
       "name": "ci",
@@ -28,31 +36,91 @@
         "CMAKE_BUILD_TYPE": "Debug",
         "DIGZIP_WARNINGS_AS_ERRORS": "ON"
       }
+    },
+    {
+      "name": "asan",
+      "displayName": "AddressSanitizer + UndefinedBehaviorSanitizer (Clang or GCC)",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "DIGZIP_ENABLE_SANITIZERS": "ON",
+        "DIGZIP_BUILD_FUZZERS": "ON",
+        "DIGZIP_WARNINGS_AS_ERRORS": "ON"
+      }
+    },
+    {
+      "name": "fuzz",
+      "displayName": "libFuzzer targets (Clang)",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "DIGZIP_ENABLE_SANITIZERS": "ON",
+        "DIGZIP_BUILD_FUZZERS": "ON",
+        "DIGZIP_LIBFUZZER": "ON",
+        "DIGZIP_BUILD_TESTS": "OFF",
+        "DIGZIP_BUILD_CLI": "OFF"
+      }
     }
   ],
   "buildPresets": [
-    { "name": "dev", "configurePreset": "dev", "configuration": "Debug" },
-    { "name": "release", "configurePreset": "release", "configuration": "Release" },
-    { "name": "ci", "configurePreset": "ci", "configuration": "Debug" }
+    {
+      "name": "dev",
+      "configurePreset": "dev",
+      "configuration": "Debug"
+    },
+    {
+      "name": "release",
+      "configurePreset": "release",
+      "configuration": "Release"
+    },
+    {
+      "name": "ci",
+      "configurePreset": "ci",
+      "configuration": "Debug"
+    },
+    {
+      "name": "asan",
+      "configurePreset": "asan",
+      "configuration": "Debug"
+    },
+    {
+      "name": "fuzz",
+      "configurePreset": "fuzz",
+      "configuration": "RelWithDebInfo"
+    }
   ],
   "testPresets": [
     {
       "name": "dev",
       "configurePreset": "dev",
       "configuration": "Debug",
-      "output": { "outputOnFailure": true }
+      "output": {
+        "outputOnFailure": true
+      }
     },
     {
       "name": "release",
       "configurePreset": "release",
       "configuration": "Release",
-      "output": { "outputOnFailure": true }
+      "output": {
+        "outputOnFailure": true
+      }
     },
     {
       "name": "ci",
       "configurePreset": "ci",
       "configuration": "Debug",
-      "output": { "outputOnFailure": true }
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "asan",
+      "configurePreset": "asan",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      }
     }
   ]
 }
