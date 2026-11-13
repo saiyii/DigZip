@@ -7,8 +7,12 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing tag to build, e.g. v0.1.0
+        description: Existing tag to build, e.g. v0.1.0 (or any branch, for a dry run)
         required: true
+      publish:
+        description: Attach the archives to the release of the tag
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -18,7 +22,7 @@ env:
 
 jobs:
   build:
-    name: ${{ matrix.target }}
+    name: ${{ matrix.name || matrix.target }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -33,6 +37,20 @@ jobs:
               set(VCPKG_LIBRARY_LINKAGE static)
               set(VCPKG_BUILD_TYPE release)
             cmake_args: -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+            parts: cli
+          # Qt needs the shared C++ runtime, unlike the standalone command-line tool.
+          - target: windows-x64
+            name: windows-x64-gui
+            os: windows-latest
+            triplet: x64-windows-gui
+            triplet_body: |
+              set(VCPKG_TARGET_ARCHITECTURE x64)
+              set(VCPKG_CRT_LINKAGE dynamic)
+              set(VCPKG_LIBRARY_LINKAGE static)
+              set(VCPKG_BUILD_TYPE release)
+            cmake_args: -DDIGZIP_BUILD_GUI=ON
+            qt_arch: win64_msvc2022_64
+            parts: gui
           # The oldest available runner, so that the binary runs on older glibc versions.
           - target: linux-x64
             os: ubuntu-22.04
@@ -44,6 +62,7 @@ jobs:
               set(VCPKG_CMAKE_SYSTEM_NAME Linux)
               set(VCPKG_BUILD_TYPE release)
             cmake_args: -DVCPKG_MANIFEST_FEATURES=openssl "-DCMAKE_EXE_LINKER_FLAGS=-static-libstdc++ -static-libgcc"
+            parts: cli
           - target: macos-universal
             os: macos-latest
             triplet: universal-osx-dist
@@ -53,9 +72,11 @@ jobs:
               set(VCPKG_LIBRARY_LINKAGE static)
               set(VCPKG_CMAKE_SYSTEM_NAME Darwin)
               set(VCPKG_OSX_ARCHITECTURES "arm64;x86_64")
-              set(VCPKG_OSX_DEPLOYMENT_TARGET 11.0)
+              set(VCPKG_OSX_DEPLOYMENT_TARGET 12.0)
               set(VCPKG_BUILD_TYPE release)
-            cmake_args: '"-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0'
+            cmake_args: '"-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 -DDIGZIP_BUILD_GUI=ON'
+            qt_arch: clang_64
+            parts: cli gui
     env:
       VCPKG_ROOT: ${{ github.workspace }}/vcpkg
       VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg-cache
@@ -96,8 +117,21 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
-          key: vcpkg-dist-${{ matrix.target }}-${{ hashFiles('vcpkg.json') }}
-          restore-keys: vcpkg-dist-${{ matrix.target }}-
+          key: vcpkg-dist-${{ matrix.triplet }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: vcpkg-dist-${{ matrix.triplet }}-
+
+      - name: Install Qt
+        if: matrix.qt_arch
+        shell: bash
+        run: |
+          host=windows
+          [ "$RUNNER_OS" = macOS ] && host=mac
+          dir="$RUNNER_TEMP/Qt"
+          [ "$RUNNER_OS" = Windows ] && dir=$(cygpath -m "$dir")
+          pipx run --spec aqtinstall==3.3.0 aqt install-qt $host desktop 6.10.3 ${{ matrix.qt_arch }} --outputdir "$dir"
+          qt=$(ls -d "$dir"/6.10.3/*)
+          echo "CMAKE_PREFIX_PATH=$qt" >> "$GITHUB_ENV"
+          echo "$qt/bin" >> "$GITHUB_PATH"
 
       - name: Configure
         shell: bash
@@ -116,43 +150,23 @@ jobs:
       - name: Package
         shell: bash
         run: |
-          version="${TAG#v}"
-          name="digzip-$version-${{ matrix.target }}"
-          exe=digzip
-          [ "$RUNNER_OS" = Windows ] && exe=digzip.exe
-          binary=$(find build/release/bin -name "$exe" -type f | head -n 1)
+          binary=$(find build/release/bin -name 'digzip' -o -name 'digzip.exe' | head -n 1)
           "$binary" --version
           case "$RUNNER_OS" in
             Linux) ldd "$binary" ;;
             macOS) otool -L "$binary"; lipo -info "$binary" ;;
           esac
-
-          mkdir -p "dist/$name/licenses"
-          cp "$binary" "dist/$name/"
-          cp README.md CHANGELOG.md THIRD_PARTY.md LICENSE-MIT LICENSE-APACHE "dist/$name/"
-          for copyright in build/release/vcpkg_installed/${{ matrix.triplet }}/share/*/copyright; do
-            port=$(basename "$(dirname "$copyright")")
-            [ "$port" = catch2 ] && continue
-            cp "$copyright" "dist/$name/licenses/$port.txt"
-          done
-
-          cd dist
-          if [ "$RUNNER_OS" = Windows ]; then
-            7z a -tzip "$name.zip" "$name" > /dev/null
-          else
-            tar -czf "$name.tar.gz" "$name"
-          fi
-          rm -rf "$name"
-          ls -l
+          packaging/package.sh "${TAG#v}" ${{ matrix.target }} build/release ${{ matrix.triplet }} ${{ matrix.parts }}
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.target }}
+          name: ${{ matrix.name || matrix.target }}
           path: dist/*
           if-no-files-found: error
 
   publish:
     needs: build
+    if: github.event_name == 'push' || inputs.publish
     runs-on: ubuntu-latest
     permissions:
       contents: write

@@ -1,0 +1,9 @@
+The DigZip graphical interface uses the Qt toolkit, version 6.10.3, from The Qt Company Ltd.
+and other contributors, under the GNU Lesser General Public License version 3 (LGPL-3.0.txt,
+which builds on GPL-3.0.txt).
+
+The Qt libraries are shipped as separate, unmodified shared libraries next to the program;
+you may replace them with your own build of a compatible Qt version.
+
+The source code of Qt 6.10.3 is available at
+https://download.qt.io/official_releases/qt/6.10/6.10.3/single/

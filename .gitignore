@@ -1,5 +1,7 @@
 /build/
 /out/
+/dist/
 /vcpkg_installed/
 /.vs/
 CMakeUserPresets.json
+aqtinstall.log

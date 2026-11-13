@@ -49,8 +49,26 @@ jobs:
           key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
           restore-keys: vcpkg-${{ runner.os }}-
 
+      - name: Install Qt build dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y libgl1-mesa-dev libegl1-mesa-dev libxkbcommon-dev libfontconfig1-dev
+
+      - name: Install Qt
+        shell: bash
+        run: |
+          case "$RUNNER_OS" in
+            Linux) host=linux; arch=linux_gcc_64 ;;
+            macOS) host=mac; arch=clang_64 ;;
+            Windows) host=windows; arch=win64_msvc2022_64 ;;
+          esac
+          dir="$RUNNER_TEMP/Qt"
+          [ "$RUNNER_OS" = Windows ] && dir=$(cygpath -m "$dir")
+          pipx run --spec aqtinstall==3.3.0 aqt install-qt $host desktop 6.10.3 $arch --outputdir "$dir"
+          echo "QT_ROOT_DIR=$(ls -d "$dir"/6.10.3/*)" >> "$GITHUB_ENV"
+
       - name: Configure
-        run: cmake --preset ci
+        shell: bash
+        run: cmake --preset ci -DDIGZIP_BUILD_GUI=ON "-DCMAKE_PREFIX_PATH=$QT_ROOT_DIR"
 
       - name: Build
         run: cmake --build --preset ci

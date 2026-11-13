@@ -33,3 +33,17 @@ if(TARGET digzip)
     set_tests_properties(cli.version PROPERTIES
         PASS_REGULAR_EXPRESSION "^digzip ${PROJECT_VERSION}\napi ${DIGZIP_API_VERSION}\nzlib ")
 endif()
+
+if(TARGET digzip_gui_lib)
+    find_package(Qt6 REQUIRED COMPONENTS Test)
+    add_executable(digzip_gui_tests gui/gui_test.cpp)
+    set_target_properties(digzip_gui_tests PROPERTIES AUTOMOC ON)
+    target_link_libraries(digzip_gui_tests PRIVATE digzip_gui_lib Qt6::Test)
+    target_compile_definitions(digzip_gui_tests PRIVATE DIGZIP_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+    digzip_set_warnings(digzip_gui_tests)
+
+    add_test(NAME gui COMMAND digzip_gui_tests)
+    set_tests_properties(gui PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${DIGZIP_QT_BIN_DIR}")
+endif()

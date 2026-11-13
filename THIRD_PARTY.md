@@ -39,6 +39,17 @@ run without any other file. The Linux binary also links OpenSSL statically, as d
 not all ship the same OpenSSL version. Their license texts are in the `licenses/` folder of
 each download.
 
+## Graphical interface
+
+| Component | Use | License |
+|---|---|---|
+| Qt 6 (Core, Gui, Widgets, Svg) | `digzip-gui` only | LGPL-3.0 |
+
+Qt is always linked dynamically and shipped as separate, unmodified libraries next to the
+program, which keeps DigZip's own code under MIT or Apache-2.0 and lets users replace Qt. The
+release archives include the LGPL and GPL texts and where to get the Qt source code
+(`packaging/licenses/`). The engine and the command-line tool never use Qt.
+
 ## Explicitly excluded
 
 | Component | Reason |

@@ -6,6 +6,16 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Graphical interface `digzip-gui` (Qt 6 Widgets, `DIGZIP_BUILD_GUI`): open an archive with a
+  button, by drag and drop or from the command line; sortable and filterable content list;
+  destination folder and policy for existing files; extraction and test on a worker thread with
+  progress and cancellation; password prompt, asked again for the entries a wrong password
+  could not decrypt; problems listed in the window.
+- Release archives of the graphical interface for Windows and macOS, with the Qt libraries
+  shipped separately under the LGPL (`packaging/package.sh`).
+- Prebuilt command-line binaries for Windows, Linux and macOS attached to each release.
+
 ## [0.1.0] - 2026-11-13
 
 First release: the extraction engine, the command-line tool and their safety net.

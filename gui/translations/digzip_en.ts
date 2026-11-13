@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE TS>
+<TS version="2.1" language="en">
+<context>
+    <name>Report</name>
+    <message numerus="yes">
+        <location filename="../../../../gui/support.cpp" line="100"/>
+        <source>Extracted %n file(s)</source>
+        <translation>
+            <numerusform>Extracted %n file</numerusform>
+            <numerusform>Extracted %n files</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <location filename="../../../../gui/support.cpp" line="100"/>
+        <source>Verified %n file(s)</source>
+        <translation>
+            <numerusform>Verified %n file</numerusform>
+            <numerusform>Verified %n files</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <location filename="../../../../gui/support.cpp" line="109"/>
+        <source>, %n error(s)</source>
+        <translation>
+            <numerusform>, %n error</numerusform>
+            <numerusform>, %n errors</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <location filename="../../../../gui/support.cpp" line="112"/>
+        <source>, %n warning(s)</source>
+        <translation>
+            <numerusform>, %n warning</numerusform>
+            <numerusform>, %n warnings</numerusform>
+        </translation>
+    </message>
+</context>
+<context>
+    <name>digzip::gui::MainWindow</name>
+    <message numerus="yes">
+        <location filename="../../../../gui/main_window.cpp" line="317"/>
+        <source>%n entry(s), %1</source>
+        <translation>
+            <numerusform>%n entry, %1</numerusform>
+            <numerusform>%n entries, %1</numerusform>
+        </translation>
+    </message>
+</context>
+</TS>
