@@ -1,0 +1,63 @@
+# DigZip
+
+A fast, multi-format, open source archive extractor written in C++17.
+DigZip is first a library (`DigZip::engine`); the command-line tool and the
+future graphical interface are thin clients of it.
+
+> **Status:** early development (v0.x). Nothing is extracted yet: only the
+> build skeleton and `digzip --version` exist. See [CHANGELOG.md](CHANGELOG.md).
+
+## Layout
+
+| Path | Content |
+|---|---|
+| `engine/` | The library. Public headers in `engine/include/digzip/`. Never depends on the CLI or GUI. |
+| `cli/` | The `digzip` command-line tool. |
+| `tests/` | Catch2 unit tests and CLI tests (run by CTest). |
+| `cmake/` | Shared CMake helpers. |
+
+## Building
+
+Requirements: CMake 3.21+, a C++17 compiler (MSVC 2022, GCC 9+, Clang 10+),
+and [vcpkg](https://github.com/microsoft/vcpkg) with the `VCPKG_ROOT`
+environment variable pointing to it. vcpkg builds the codec libraries
+(zlib, bzip2, liblzma, zstd) on the first configure, which takes a few minutes.
+
+DigZip parses archive containers (ZIP, TAR, 7z, ...) with its own code and
+relies on those libraries for decompression only.
+
+```sh
+cmake --preset dev          # or: release
+cmake --build --preset dev
+ctest --preset dev
+```
+
+The binaries land in `build/<preset>/bin/`.
+
+### Build options
+
+| Option | Default | Effect |
+|---|---|---|
+| `DIGZIP_BUILD_CLI` | `ON` | Build the `digzip` executable. |
+| `DIGZIP_BUILD_TESTS` | `ON` | Build the test suite (pulls Catch2 through vcpkg). |
+| `DIGZIP_WARNINGS_AS_ERRORS` | `OFF` | Treat warnings as errors (`ON` in CI). |
+| `BUILD_SHARED_LIBS` | `OFF` | Build the engine as a shared library. |
+
+## Privacy
+
+DigZip collects no telemetry and makes no network call unless you explicitly
+ask for one.
+
+## License
+
+Dual-licensed under either of
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+- MIT License ([LICENSE-MIT](LICENSE-MIT))
+
+at your option. Third-party components and their licenses are listed in
+[THIRD_PARTY.md](THIRD_PARTY.md).
+
+Unless you explicitly state otherwise, any contribution intentionally
+submitted for inclusion in DigZip shall be dual-licensed as above, without any
+additional terms or conditions.

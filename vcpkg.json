@@ -1,0 +1,23 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "digzip",
+  "version-semver": "0.1.0",
+  "builtin-baseline": "43930cd67eee1aac4e2becacdaf5f5bf62b3ed1e",
+  "dependencies": [
+    "zlib",
+    {
+      "name": "bzip2",
+      "default-features": false
+    },
+    "liblzma",
+    "zstd"
+  ],
+  "features": {
+    "tests": {
+      "description": "Unit and integration tests",
+      "dependencies": [
+        "catch2"
+      ]
+    }
+  }
+}
