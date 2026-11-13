@@ -1,0 +1,180 @@
+name: Release
+
+# Builds standalone digzip binaries and attaches them to the GitHub release of a tag.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to build, e.g. v0.1.0
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: windows-x64
+            os: windows-latest
+            triplet: x64-windows-dist
+            triplet_body: |
+              set(VCPKG_TARGET_ARCHITECTURE x64)
+              set(VCPKG_CRT_LINKAGE static)
+              set(VCPKG_LIBRARY_LINKAGE static)
+              set(VCPKG_BUILD_TYPE release)
+            cmake_args: -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+          # The oldest available runner, so that the binary runs on older glibc versions.
+          - target: linux-x64
+            os: ubuntu-22.04
+            triplet: x64-linux-dist
+            triplet_body: |
+              set(VCPKG_TARGET_ARCHITECTURE x64)
+              set(VCPKG_CRT_LINKAGE dynamic)
+              set(VCPKG_LIBRARY_LINKAGE static)
+              set(VCPKG_CMAKE_SYSTEM_NAME Linux)
+              set(VCPKG_BUILD_TYPE release)
+            cmake_args: -DVCPKG_MANIFEST_FEATURES=openssl "-DCMAKE_EXE_LINKER_FLAGS=-static-libstdc++ -static-libgcc"
+          - target: macos-universal
+            os: macos-latest
+            triplet: universal-osx-dist
+            triplet_body: |
+              set(VCPKG_TARGET_ARCHITECTURE arm64)
+              set(VCPKG_CRT_LINKAGE dynamic)
+              set(VCPKG_LIBRARY_LINKAGE static)
+              set(VCPKG_CMAKE_SYSTEM_NAME Darwin)
+              set(VCPKG_OSX_ARCHITECTURES "arm64;x86_64")
+              set(VCPKG_OSX_DEPLOYMENT_TARGET 11.0)
+              set(VCPKG_BUILD_TYPE release)
+            cmake_args: '"-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0'
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg-cache
+      VCPKG_DISABLE_METRICS: 1
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Fetch vcpkg at the manifest baseline
+        shell: bash
+        run: |
+          baseline=$(sed -n 's/.*"builtin-baseline": *"\([0-9a-f]*\)".*/\1/p' vcpkg.json)
+          git clone https://github.com/microsoft/vcpkg.git "$VCPKG_ROOT"
+          git -C "$VCPKG_ROOT" checkout "$baseline"
+          mkdir -p "$VCPKG_DEFAULT_BINARY_CACHE"
+
+      - name: Bootstrap vcpkg (Windows)
+        if: runner.os == 'Windows'
+        run: ${{ env.VCPKG_ROOT }}/bootstrap-vcpkg.bat -disableMetrics
+
+      - name: Bootstrap vcpkg (Unix)
+        if: runner.os != 'Windows'
+        run: $VCPKG_ROOT/bootstrap-vcpkg.sh -disableMetrics
+
+      - name: Write the static triplet
+        shell: bash
+        env:
+          TRIPLET_BODY: ${{ matrix.triplet_body }}
+        run: |
+          dir="$RUNNER_TEMP/triplets"
+          [ "$RUNNER_OS" = Windows ] && dir=$(cygpath -m "$dir")
+          mkdir -p "$dir"
+          printf '%s\n' "$TRIPLET_BODY" > "$dir/${{ matrix.triplet }}.cmake"
+          echo "TRIPLETS_DIR=$dir" >> "$GITHUB_ENV"
+
+      - name: Restore vcpkg binary cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: vcpkg-dist-${{ matrix.target }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: vcpkg-dist-${{ matrix.target }}-
+
+      - name: Configure
+        shell: bash
+        run: >
+          cmake --preset release
+          "-DVCPKG_OVERLAY_TRIPLETS=$TRIPLETS_DIR"
+          -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }}
+          ${{ matrix.cmake_args }}
+
+      - name: Build
+        run: cmake --build --preset release
+
+      - name: Test
+        run: ctest --preset release
+
+      - name: Package
+        shell: bash
+        run: |
+          version="${TAG#v}"
+          name="digzip-$version-${{ matrix.target }}"
+          exe=digzip
+          [ "$RUNNER_OS" = Windows ] && exe=digzip.exe
+          binary=$(find build/release/bin -name "$exe" -type f | head -n 1)
+          "$binary" --version
+          case "$RUNNER_OS" in
+            Linux) ldd "$binary" ;;
+            macOS) otool -L "$binary"; lipo -info "$binary" ;;
+          esac
+
+          mkdir -p "dist/$name/licenses"
+          cp "$binary" "dist/$name/"
+          cp README.md CHANGELOG.md THIRD_PARTY.md LICENSE-MIT LICENSE-APACHE "dist/$name/"
+          for copyright in build/release/vcpkg_installed/${{ matrix.triplet }}/share/*/copyright; do
+            port=$(basename "$(dirname "$copyright")")
+            [ "$port" = catch2 ] && continue
+            cp "$copyright" "dist/$name/licenses/$port.txt"
+          done
+
+          cd dist
+          if [ "$RUNNER_OS" = Windows ]; then
+            7z a -tzip "$name.zip" "$name" > /dev/null
+          else
+            tar -czf "$name.tar.gz" "$name"
+          fi
+          rm -rf "$name"
+          ls -l
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Upload to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd dist
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag \
+              --title "DigZip ${TAG#v}" --notes-file "../docs/releases/${TAG#v}.md"
+          fi
+          gh release upload "$TAG" * --repo "$GITHUB_REPOSITORY" --clobber

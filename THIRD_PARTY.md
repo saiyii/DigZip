@@ -34,6 +34,11 @@ ZipCrypto and the 7z key derivation are DigZip's own code.
 | CommonCrypto | macOS | Part of macOS |
 | OpenSSL 3 (libcrypto) | Linux and other Unix systems | Apache-2.0 |
 
+The prebuilt binaries attached to each release link every library above statically, so they
+run without any other file. The Linux binary also links OpenSSL statically, as distributions do
+not all ship the same OpenSSL version. Their license texts are in the `licenses/` folder of
+each download.
+
 ## Explicitly excluded
 
 | Component | Reason |

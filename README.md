@@ -22,6 +22,13 @@ future graphical interface are thin clients of it.
   zlib, bzip2, liblzma and zstd do the common decompression; encryption primitives come
   from the operating system.
 
+## Download
+
+Prebuilt `digzip` binaries for Windows (x64), Linux (x64, glibc 2.35 or later) and macOS
+(11 or later, Apple Silicon and Intel) are attached to each
+[release](https://github.com/saiyii/DigZip/releases). Each one is a single executable with no
+dependency to install; unpack it and run `digzip --help`.
+
 ## Command line
 
 ```sh
