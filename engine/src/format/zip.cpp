@@ -216,7 +216,9 @@ public:
         std::replace(entry.path.begin(), entry.path.end(), '\\', '/');
         entry.size = item.size;
         entry.packed_size = item.packed;
-        entry.crc32 = item.crc;
+        if (!(item.aes_strength != 0 && item.aes_version == 2)) {
+            entry.crc32 = item.crc; // AE-2 entries store no CRC
+        }
         entry.mtime = item.mtime;
         entry.encrypted = (item.flags & kFlagEncrypted) != 0;
         const char* method = method_name(item.real_method());

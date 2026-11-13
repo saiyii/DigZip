@@ -8,6 +8,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string>
+#include <utility>
 
 namespace digzip::crypto {
 
@@ -59,6 +61,9 @@ private:
 
 void pbkdf2_hmac_sha1(const std::uint8_t* password, std::size_t password_size, const std::uint8_t* salt,
                       std::size_t salt_size, unsigned iterations, std::uint8_t* out, std::size_t out_size);
+
+// Name and version of the backend, for version reports: {"cng", "system"}, {"openssl", "3.5.1"}...
+std::pair<std::string, std::string> backend();
 
 // Overwrites key material so that it does not linger in memory.
 void wipe(void* data, std::size_t size);

@@ -123,6 +123,11 @@ void pbkdf2_hmac_sha1(const std::uint8_t* password, std::size_t password_size, c
           "PBKDF2");
 }
 
+std::pair<std::string, std::string> backend()
+{
+    return {"commoncrypto", "system"};
+}
+
 void wipe(void* data, std::size_t size)
 {
     memset_s(data, size, 0, size);

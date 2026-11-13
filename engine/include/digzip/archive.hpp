@@ -86,7 +86,7 @@ struct Report {
     std::uint64_t bytes = 0; // uncompressed bytes written (extract) or verified (test)
     std::vector<Issue> issues;
 
-    bool ok() const noexcept;
+    DIGZIP_EXPORT bool ok() const noexcept;
 };
 
 struct ArchiveInfo {

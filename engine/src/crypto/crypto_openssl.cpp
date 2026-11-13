@@ -6,6 +6,7 @@
 
 #include <openssl/core_names.h>
 #include <openssl/crypto.h>
+#include <openssl/opensslv.h>
 #include <openssl/evp.h>
 #include <openssl/params.h>
 
@@ -160,6 +161,11 @@ void pbkdf2_hmac_sha1(const std::uint8_t* password, std::size_t password_size, c
     check(PKCS5_PBKDF2_HMAC(reinterpret_cast<const char*>(password), to_int(password_size), salt, to_int(salt_size),
                             static_cast<int>(iterations), EVP_sha1(), to_int(out_size), out),
           "PBKDF2");
+}
+
+std::pair<std::string, std::string> backend()
+{
+    return {"openssl", OpenSSL_version(OPENSSL_VERSION_STRING)};
 }
 
 void wipe(void* data, std::size_t size)

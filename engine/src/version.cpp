@@ -1,3 +1,5 @@
+#include "crypto/crypto.hpp"
+
 #include <digzip/version.hpp>
 
 #include <bzlib.h>
@@ -28,6 +30,7 @@ VersionInfo version_info()
             {"bzip2", bzip2_version()},
             {"liblzma", lzma_version_string()},
             {"zstd", ZSTD_versionString()},
+            {crypto::backend().first, crypto::backend().second},
         },
     };
 }

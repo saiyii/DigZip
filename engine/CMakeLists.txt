@@ -43,7 +43,8 @@ add_library(digzip_objects OBJECT
     src/format/tar.cpp
     src/format/zip.cpp
     src/io/file_source.cpp
-    src/io/stream.cpp)
+    src/io/stream.cpp
+    src/io/system_error.cpp)
 
 set_target_properties(digzip_objects PROPERTIES
     POSITION_INDEPENDENT_CODE ON

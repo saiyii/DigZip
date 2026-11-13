@@ -1,6 +1,7 @@
 #include "extract/extractor.hpp"
 #include "extract/output_file.hpp"
 #include "filter.hpp"
+#include "io/system_error.hpp"
 
 #include <algorithm>
 #include <random>
@@ -22,7 +23,7 @@ constexpr int kMaxRenameAttempts = 10'000;
 
 [[noreturn]] void throw_fs(ErrorCode code, const std::string& what, const std::error_code& ec)
 {
-    throw Error(code, what + ": " + ec.message());
+    throw Error(code, what + ": " + io::error_message(ec));
 }
 
 void warn(Report& report, ErrorCode code, const std::string& path, const std::string& message)
@@ -62,7 +63,7 @@ Extractor::Extractor(const fs::path& destination, const ExtractOptions& options)
     root_ = long_path(destination);
     fs::create_directories(root_, ec);
     if (!fs::is_directory(root_)) {
-        const std::string reason = ec ? ec.message() : "it is not a directory";
+        const std::string reason = ec ? io::error_message(ec) : "it is not a directory";
         throw Error(ErrorCode::InvalidArgument, "cannot extract into " + destination.u8string() + ": " + reason);
     }
     temp_counter_ = std::random_device{}();

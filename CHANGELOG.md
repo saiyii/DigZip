@@ -10,8 +10,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - Repository skeleton: CMake build with presets, vcpkg manifest, dual MIT / Apache-2.0 license.
 - Engine library (`DigZip::engine`) linked against the zlib, bzip2, liblzma and zstd codecs.
   Archive containers will be parsed by DigZip's own code.
-- `digzip::version_info()` reporting program, API and dependency versions.
-- Minimal `digzip --version` command.
+- `digzip::version_info()` reporting program, API and dependency versions (crypto backend included).
+- Command-line tool: `list`, `extract`, `test`, `--version`, `--help`; selection, strip, overwrite
+  policy, passwords (argument, file, environment variable), safety limits, `--json` output,
+  progress bar, clean stop on Ctrl+C, documented exit codes. UTF-8 arguments and output on Windows.
 - Catch2 test suite and GitHub Actions CI on Windows, macOS and Linux.
 - Engine API: `detect`, `list`, `extract` and `test`, with a per-entry `Report` of warnings and errors.
 - Formats: TAR (ustar, GNU long names, pax) plain or compressed with gzip, bzip2, xz or zstd,
