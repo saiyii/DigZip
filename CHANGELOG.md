@@ -38,3 +38,6 @@ and the project uses [Semantic Versioning](https://semver.org/).
   are verified; a damaged solid block fails only its own files.
 - PPMd, written for DigZip: variant H for 7z and variant I revision 1 for ZIP (method 98),
   including model restart and cut-off when the model memory is full.
+- Entry selection with include / exclude patterns (`*`, `?`), `strip_components`, overwrite policy
+  (skip, replace, rename to "name (1).ext"), progress callback (entries, bytes, archive position)
+  and cancellation from any thread, without partial files.

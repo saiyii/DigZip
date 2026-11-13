@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -48,6 +49,9 @@ using SourcePtr = std::shared_ptr<const Source>;
 
 SourcePtr open_file(const std::filesystem::path& path);
 SourcePtr memory_source(std::vector<std::uint8_t> bytes);
+
+// Adds the number of bytes read through the returned source to `counter` (for progress reports).
+SourcePtr count_reads(SourcePtr source, std::shared_ptr<std::atomic<std::uint64_t>> counter);
 
 // Buffered sequential view of the bytes [offset, offset + length) of a source.
 class SourceStream final : public InputStream {

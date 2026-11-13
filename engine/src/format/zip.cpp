@@ -184,7 +184,7 @@ const char* method_name(std::uint16_t method)
 
 class ZipReader final : public ArchiveReader {
 public:
-    ZipReader(io::SourcePtr source, Budget& budget) : source_(std::move(source)), budget_(budget)
+    ZipReader(io::SourcePtr source, Monitor& monitor) : source_(std::move(source)), monitor_(monitor)
     {
         read_directory();
     }
@@ -299,7 +299,7 @@ private:
         if (count > directory_size / kCentralHeaderSize) {
             corrupt("the entry count does not match the central directory size");
         }
-        const std::uint64_t max_entries = budget_.limits().max_entries;
+        const std::uint64_t max_entries = monitor_.limits().max_entries;
         if (max_entries != 0 && count > max_entries) {
             throw Error(ErrorCode::LimitExceeded, "the archive has more than " + std::to_string(max_entries) +
                                                       " entries (limit: max_entries)");
@@ -440,13 +440,13 @@ private:
         }
 
         auto raw = std::make_unique<io::SourceStream>(source_, data_offset, item.packed);
-        auto decoded = std::make_unique<BudgetStream>(decoder(item, std::move(raw)), budget_);
+        auto decoded = std::make_unique<MonitoredStream>(decoder(item, std::move(raw)), monitor_);
         return std::make_unique<CheckedStream>(std::move(decoded), item.size, item.crc);
     }
 
     io::StreamPtr decoder(const ZipItem& item, io::StreamPtr raw) const
     {
-        const std::uint64_t memory = budget_.limits().max_memory;
+        const std::uint64_t memory = monitor_.limits().max_memory;
         switch (item.method) {
         case 0:
             return raw;
@@ -483,7 +483,7 @@ private:
     }
 
     io::SourcePtr source_;
-    Budget& budget_;
+    Monitor& monitor_;
     std::vector<ZipItem> items_;
     std::uint64_t directory_start_ = 0;
     std::uint64_t shift_ = 0;
@@ -510,9 +510,9 @@ bool has_zip_directory(const io::Source& source)
     return false;
 }
 
-std::unique_ptr<ArchiveReader> make_zip_reader(io::SourcePtr source, Budget& budget)
+std::unique_ptr<ArchiveReader> make_zip_reader(io::SourcePtr source, Monitor& monitor)
 {
-    return std::make_unique<ZipReader>(std::move(source), budget);
+    return std::make_unique<ZipReader>(std::move(source), monitor);
 }
 
 } // namespace digzip::format

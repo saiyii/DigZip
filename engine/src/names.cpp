@@ -25,6 +25,8 @@ const char* to_string(ErrorCode code) noexcept
         return "already_exists";
     case ErrorCode::InvalidArgument:
         return "invalid_argument";
+    case ErrorCode::Cancelled:
+        return "cancelled";
     }
     return "unknown";
 }

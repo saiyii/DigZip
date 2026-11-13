@@ -294,7 +294,7 @@ const char* method_name(std::uint64_t m)
 
 class SevenZipReader final : public ArchiveReader {
 public:
-    SevenZipReader(io::SourcePtr source, Budget& budget) : source_(std::move(source)), budget_(budget)
+    SevenZipReader(io::SourcePtr source, Monitor& monitor) : source_(std::move(source)), monitor_(monitor)
     {
         read_archive();
     }
@@ -701,7 +701,7 @@ private:
     void read_files(HeaderReader& r)
     {
         const std::size_t count = r.count();
-        const std::uint64_t max_entries = budget_.limits().max_entries;
+        const std::uint64_t max_entries = monitor_.limits().max_entries;
         if (max_entries != 0 && count > max_entries) {
             throw Error(ErrorCode::LimitExceeded, "the archive has more than " + std::to_string(max_entries) +
                                                       " entries (limit: max_entries)");
@@ -851,7 +851,7 @@ private:
         }
         used[index] = true;
         const Coder& coder = folder.coders[index];
-        const std::uint64_t memory = budget_.limits().max_memory;
+        const std::uint64_t memory = monitor_.limits().max_memory;
 
         // Consecutive BCJ / Delta filters ending with LZMA or LZMA2 run as one liblzma chain.
         if (liblzma_filter(coder.method)) {
@@ -912,7 +912,7 @@ private:
                 current_folder_ = item.folder;
                 auto decoded = build_folder(streams_, item.folder);
                 folder_stream_ = std::make_unique<GuardedStream>(
-                    std::make_unique<BudgetStream>(std::move(decoded), budget_));
+                    std::make_unique<MonitoredStream>(std::move(decoded), monitor_));
             }
             slice_ = std::make_unique<io::SliceStream>(*folder_stream_, item.size);
             entry_stream_ = std::make_unique<CheckedStream>(std::make_unique<SliceRef>(*slice_), item.size, item.crc);
@@ -963,7 +963,7 @@ private:
     };
 
     io::SourcePtr source_;
-    Budget& budget_;
+    Monitor& monitor_;
     Streams streams_;
     std::vector<Item> items_;
     std::size_t index_ = static_cast<std::size_t>(-1);
@@ -978,9 +978,9 @@ private:
 
 } // namespace
 
-std::unique_ptr<ArchiveReader> make_sevenzip_reader(io::SourcePtr source, Budget& budget)
+std::unique_ptr<ArchiveReader> make_sevenzip_reader(io::SourcePtr source, Monitor& monitor)
 {
-    return std::make_unique<SevenZipReader>(std::move(source), budget);
+    return std::make_unique<SevenZipReader>(std::move(source), monitor);
 }
 
 } // namespace digzip::format

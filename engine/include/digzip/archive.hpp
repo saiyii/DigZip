@@ -5,8 +5,10 @@
 #include <digzip/export.hpp>
 #include <digzip/format.hpp>
 
+#include <atomic>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -22,11 +24,43 @@ struct Limits {
     std::uint64_t max_memory = 1ull << 30;        // memory a single decoder may allocate
 };
 
-struct Options {
-    Limits limits;
+struct Progress {
+    std::uint64_t entries = 0;      // entries reached so far
+    std::uint64_t bytes = 0;        // uncompressed bytes decoded so far
+    std::uint64_t archive_read = 0; // archive bytes read so far: archive_read / archive_size is the best
+    std::uint64_t archive_size = 0; // estimate of the overall progress
+    std::string current;            // path of the entry being processed
 };
 
-struct ExtractOptions : Options {};
+struct Options {
+    Limits limits;
+
+    // Entry selection, applied to the paths as stored in the archive. '*' matches any sequence of
+    // characters (including '/'), '?' any single character. A pattern also matches everything below
+    // a directory it matches. An entry is processed if it matches an include pattern (or there are
+    // none) and no exclude pattern.
+    std::vector<std::string> include;
+    std::vector<std::string> exclude;
+
+    // Called for each entry and about every 100 ms while data is decoded, from the calling thread.
+    std::function<void(const Progress&)> on_progress;
+
+    // When set to true (from any thread), the operation stops as soon as possible with an
+    // ErrorCode::Cancelled issue. Files already completed are kept, the file in progress is removed.
+    const std::atomic<bool>* cancel = nullptr;
+};
+
+// What to do when an output path already exists.
+enum class Overwrite {
+    Skip,    // keep the existing file and report a warning
+    Replace, // replace it, once the new file is complete
+    Rename,  // extract under a free name: "name (1).ext", "name (2).ext"...
+};
+
+struct ExtractOptions : Options {
+    unsigned strip_components = 0; // leading path components to remove; shallower entries are skipped
+    Overwrite overwrite = Overwrite::Skip;
+};
 
 enum class Severity {
     Warning, // the operation went on; the result may differ from the archive (skipped or renamed entry)

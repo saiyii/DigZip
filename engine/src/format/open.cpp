@@ -131,7 +131,7 @@ ArchiveFormat detect_format(const io::Source& source)
     return format;
 }
 
-OpenedArchive open_archive(io::SourcePtr source, const std::filesystem::path& path, Budget& budget)
+OpenedArchive open_archive(io::SourcePtr source, const std::filesystem::path& path, Monitor& monitor)
 {
     const ArchiveFormat sniffed = detect_format(*source);
     const std::uint64_t size = source->size();
@@ -140,11 +140,11 @@ OpenedArchive open_archive(io::SourcePtr source, const std::filesystem::path& pa
     if (sniffed.compression == Compression::None) {
         switch (sniffed.container) {
         case Container::Tar:
-            return {sniffed, make_tar_reader(std::make_unique<BudgetStream>(std::move(whole), budget))};
+            return {sniffed, make_tar_reader(std::make_unique<MonitoredStream>(std::move(whole), monitor))};
         case Container::Zip:
-            return {sniffed, make_zip_reader(source, budget)};
+            return {sniffed, make_zip_reader(source, monitor)};
         case Container::SevenZip:
-            return {sniffed, make_sevenzip_reader(source, budget)};
+            return {sniffed, make_sevenzip_reader(source, monitor)};
         default:
             unsupported_container(sniffed.container);
         }
@@ -167,11 +167,11 @@ OpenedArchive open_archive(io::SourcePtr source, const std::filesystem::path& pa
         entry.method = "bzip2";
         break;
     case Compression::Xz:
-        decoded = codec::decode_xz(std::move(whole), budget.limits().max_memory);
+        decoded = codec::decode_xz(std::move(whole), monitor.limits().max_memory);
         entry.method = "xz";
         break;
     default:
-        decoded = codec::decode_zstd(std::move(whole), budget.limits().max_memory);
+        decoded = codec::decode_zstd(std::move(whole), monitor.limits().max_memory);
         entry.method = "zstd";
         break;
     }
@@ -179,7 +179,7 @@ OpenedArchive open_archive(io::SourcePtr source, const std::filesystem::path& pa
         entry.path = raw_entry_name(path, {});
     }
 
-    auto counted = std::make_unique<BudgetStream>(std::move(decoded), budget);
+    auto counted = std::make_unique<MonitoredStream>(std::move(decoded), monitor);
     std::vector<std::uint8_t> prefix(kSniffSize);
     prefix.resize(counted->read_up_to(prefix.data(), prefix.size()));
     const bool is_tar = prefix.size() == kSniffSize && is_tar_header(prefix.data());

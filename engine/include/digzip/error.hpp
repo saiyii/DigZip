@@ -24,6 +24,7 @@ enum class ErrorCode {
     InvalidName,     // a file name had to be changed or cannot be represented on this system
     AlreadyExists,   // the output path already exists
     InvalidArgument, // bad option or destination
+    Cancelled,       // stopped at the caller's request
 };
 
 DIGZIP_EXPORT const char* to_string(ErrorCode code) noexcept;

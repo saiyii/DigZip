@@ -7,7 +7,8 @@ find_package(zstd CONFIG REQUIRED)
 # the tests, which also exercise internal components.
 add_library(digzip_objects OBJECT
     src/archive.cpp
-    src/limits.cpp
+    src/filter.cpp
+    src/monitor.cpp
     src/names.cpp
     src/text.cpp
     src/version.cpp

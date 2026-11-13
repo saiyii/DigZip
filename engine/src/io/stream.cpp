@@ -29,7 +29,32 @@ private:
     std::vector<std::uint8_t> bytes_;
 };
 
+class CountingSource final : public Source {
+public:
+    CountingSource(SourcePtr inner, std::shared_ptr<std::atomic<std::uint64_t>> counter)
+        : inner_(std::move(inner)), counter_(std::move(counter))
+    {
+    }
+
+    std::uint64_t size() const override { return inner_->size(); }
+
+    void read_at(std::uint64_t offset, std::uint8_t* data, std::size_t size) const override
+    {
+        inner_->read_at(offset, data, size);
+        counter_->fetch_add(size, std::memory_order_relaxed);
+    }
+
+private:
+    SourcePtr inner_;
+    std::shared_ptr<std::atomic<std::uint64_t>> counter_;
+};
+
 } // namespace
+
+SourcePtr count_reads(SourcePtr source, std::shared_ptr<std::atomic<std::uint64_t>> counter)
+{
+    return std::make_shared<CountingSource>(std::move(source), std::move(counter));
+}
 
 void InputStream::read_exact(std::uint8_t* data, std::size_t size)
 {

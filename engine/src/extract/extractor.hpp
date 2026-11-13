@@ -6,6 +6,8 @@
 #include <digzip/archive.hpp>
 
 #include <filesystem>
+#include <map>
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -38,20 +40,27 @@ private:
         std::size_t depth;
     };
 
+    // Sanitized path after strip_components; empty when the entry is stripped away.
+    std::optional<SafePath> place(std::string_view archive_path) const;
+
     std::filesystem::path path_of(const std::vector<std::string>& components, std::size_t count) const;
     void make_directories(const std::vector<std::string>& components, std::size_t count);
-    bool claim(const std::filesystem::path& target, const std::string& entry_path, Report& report);
+
+    // Applies the overwrite policy. Returns where to write, or nothing if the entry is skipped.
+    std::optional<std::filesystem::path> claim(const std::filesystem::path& target, const std::string& entry_path,
+                                               Report& report);
 
     void extract_directory(const Entry& entry, const SafePath& path, Report& report);
     void extract_file(const Entry& entry, const SafePath& path, format::ArchiveReader& reader, Report& report);
     void extract_hardlink(const Entry& entry, const SafePath& path, Report& report);
     void create_symlink(const PendingLink& link, Report& report);
 
+    const ExtractOptions& options_;
     std::filesystem::path root_;
     NameRules rules_;
-    std::set<std::string> directories_; // created or verified, relative to the root
-    std::set<std::string> files_;       // regular files written by this extraction
-    std::set<std::string> skipped_files_; // files left alone because the path existed
+    std::set<std::string> directories_;                  // created or verified, relative to the root
+    std::map<std::string, std::filesystem::path> files_; // files written by this extraction, by archive path
+    std::set<std::string> seen_files_;                   // every file entry met, extracted or not
     std::vector<PendingLink> links_;
     std::vector<DirectoryTime> directory_times_;
     std::vector<std::uint8_t> buffer_;
