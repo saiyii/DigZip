@@ -26,3 +26,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
   all configurable.
 - Files are written to a temporary name and renamed when complete: an error never leaves a
   partial file, and existing files are never overwritten.
+- ZIP: in-house reader with Zip64, data descriptors, self-extracting (prepended) archives,
+  CP437 / UTF-8 / Info-ZIP Unicode names, NTFS / Unix / DOS times, Unix modes and symbolic
+  links. Methods: stored, deflate, Deflate64 (DigZip's own decoder), bzip2, LZMA, zstd, xz.
+  Every entry is checked for exact size and CRC-32; overlapping entries (a zip bomb technique)
+  are refused; a broken entry does not stop the others.

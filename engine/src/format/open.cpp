@@ -107,8 +107,6 @@ std::string raw_entry_name(const std::filesystem::path& archive, const std::stri
 [[noreturn]] void unsupported_container(Container container)
 {
     switch (container) {
-    case Container::Zip:
-        throw Error(ErrorCode::Unsupported, "ZIP support is not available yet");
     case Container::SevenZip:
         throw Error(ErrorCode::Unsupported, "7z support is not available yet");
     case Container::Rar:
@@ -129,6 +127,9 @@ ArchiveFormat detect_format(const io::Source& source)
     ArchiveFormat format;
     format.compression = detect_compression(head.data(), size);
     format.container = format.compression == Compression::None ? detect_container(head.data(), size) : Container::Raw;
+    if (format.container == Container::Unknown && has_zip_directory(source)) {
+        format.container = Container::Zip;
+    }
     return format;
 }
 
@@ -139,11 +140,14 @@ OpenedArchive open_archive(io::SourcePtr source, const std::filesystem::path& pa
     auto whole = std::make_unique<io::SourceStream>(source, 0, size);
 
     if (sniffed.compression == Compression::None) {
-        if (sniffed.container != Container::Tar) {
+        switch (sniffed.container) {
+        case Container::Tar:
+            return {sniffed, make_tar_reader(std::make_unique<BudgetStream>(std::move(whole), budget))};
+        case Container::Zip:
+            return {sniffed, make_zip_reader(source, budget)};
+        default:
             unsupported_container(sniffed.container);
         }
-        auto counted = std::make_unique<BudgetStream>(std::move(whole), budget);
-        return {sniffed, make_tar_reader(std::move(counted))};
     }
 
     Entry entry;

@@ -12,7 +12,10 @@ add_library(digzip_objects OBJECT
     src/text.cpp
     src/version.cpp
     src/codec/bzip2.cpp
+    src/codec/deflate.cpp
     src/codec/gzip.cpp
+    src/codec/inflate.cpp
+    src/codec/lzma_raw.cpp
     src/codec/xz.cpp
     src/codec/zstd.cpp
     src/extract/extractor.cpp
@@ -20,6 +23,7 @@ add_library(digzip_objects OBJECT
     src/extract/path_rules.cpp
     src/format/open.cpp
     src/format/tar.cpp
+    src/format/zip.cpp
     src/io/file_source.cpp
     src/io/stream.cpp)
 

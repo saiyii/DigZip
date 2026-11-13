@@ -44,6 +44,10 @@ ArchiveFormat detect_format(const io::Source& source);
 // Readers for each container.
 std::unique_ptr<ArchiveReader> make_tar_reader(io::StreamPtr stream);
 std::unique_ptr<ArchiveReader> make_raw_reader(io::StreamPtr stream, Entry entry);
+std::unique_ptr<ArchiveReader> make_zip_reader(io::SourcePtr source, Budget& budget);
+
+// True if the source ends with a ZIP central directory (also finds self-extracting archives).
+bool has_zip_directory(const io::Source& source);
 
 // True if `block` (512 bytes) is a valid tar header.
 bool is_tar_header(const std::uint8_t* block);

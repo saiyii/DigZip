@@ -2,12 +2,14 @@ find_package(Catch2 3 CONFIG REQUIRED)
 include(Catch)
 
 add_executable(digzip_tests
+    codec_test.cpp
     formats_test.cpp
     path_rules_test.cpp
     robustness_test.cpp
     security_test.cpp
     text_test.cpp
-    version_test.cpp)
+    version_test.cpp
+    zip_test.cpp)
 target_include_directories(digzip_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(digzip_tests PRIVATE digzip_internal Catch2::Catch2WithMain)
 target_compile_definitions(digzip_tests PRIVATE

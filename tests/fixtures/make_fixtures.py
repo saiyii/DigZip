@@ -1,7 +1,9 @@
 """Generates the test archives in this directory.
 
 Run with Python 3.14+ (for zstd support):  python make_fixtures.py
-The outputs are committed, so building and running the tests never needs Python.
+Some fixtures are produced by 7-Zip (set DIGZIP_7Z if 7z is not in the default location);
+they are kept as committed when 7-Zip is missing.
+The outputs are committed, so building and running the tests never needs Python or 7-Zip.
 """
 
 import bz2
@@ -9,7 +11,12 @@ import gzip
 import io
 import lzma
 import os
+import struct
+import subprocess
 import tarfile
+import tempfile
+import zipfile
+import zlib
 from compression import zstd
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -92,6 +99,201 @@ def basic_tree(tar):
     add_file(tar, "bin/run.sh", b"#!/bin/sh\necho ok\n", mode=0o755)
     add_link(tar, "links/hello-link", "../hello.txt")
     add_link(tar, "links/hello-hard", "hello.txt", tarfile.LNKTYPE)
+
+
+# ---------------------------------------------------------------------------
+# ZIP
+
+SEVEN_ZIP = os.environ.get("DIGZIP_7Z", r"C:\Program Files\7-Zip\7z.exe")
+DOS_TIME = (2023, 11, 14, 22, 13, 20)
+
+
+def extended_timestamp(mtime=MTIME):
+    """Info-ZIP extended timestamp extra field (0x5455), modification time only."""
+    return struct.pack("<HHBi", 0x5455, 5, 1, mtime)
+
+
+def zip_basic(compression):
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression) as z:
+        def add(name, data, mode=0o644, kind=0o100000):
+            info = zipfile.ZipInfo(name, DOS_TIME)
+            info.create_system = 3
+            info.external_attr = (kind | mode) << 16
+            info.extra = extended_timestamp()
+            info.compress_type = compression
+            z.writestr(info, data)
+        info = zipfile.ZipInfo("data/empty_dir/", DOS_TIME)
+        info.create_system = 3
+        info.external_attr = (0o040755 << 16) | 0x10
+        z.writestr(info, b"")
+        for name, data in FILES.items():
+            add(name, data)
+        add("bin/run.sh", b"#!/bin/sh\necho ok\n", mode=0o755)
+        add("links/hello-link", b"../hello.txt", mode=0o777, kind=0o120000)
+    return buffer.getvalue()
+
+
+def dos_datetime(t=DOS_TIME):
+    year, month, day, hour, minute, second = t
+    return (hour << 11) | (minute << 5) | (second // 2), ((year - 1980) << 9) | (month << 5) | day
+
+
+class ZipEntry:
+    def __init__(self, name, data, method=0, payload=None, flags=0, extra=b"", mode=None, crc=None, size=None):
+        self.name = name if isinstance(name, bytes) else name.encode("utf-8")
+        self.data = data
+        self.method = method
+        self.payload = data if payload is None else payload
+        self.flags = flags
+        self.extra = extra
+        self.mode = mode
+        self.crc = zlib.crc32(data) if crc is None else crc
+        self.size = len(data) if size is None else size
+
+
+def build_zip(entries, comment=b"", duplicate_first=False, zip64=False):
+    """Minimal ZIP writer giving full control over every field, for crafted test cases."""
+    time, date = dos_datetime()
+    out = bytearray()
+    central = bytearray()
+    records = []
+    for e in entries:
+        offset = len(out)
+        out += struct.pack("<IHHHHHIIIHH", 0x04034B50, 20, e.flags, e.method, time, date,
+                           e.crc, len(e.payload), e.size, len(e.name), len(e.extra))
+        out += e.name + e.extra + e.payload
+        records.append((e, offset))
+    if duplicate_first:
+        records.append(records[0])
+    for e, offset in records:
+        made_by = 0x031E if e.mode is not None else 0x0014
+        external = (e.mode << 16) if e.mode is not None else 0
+        central += struct.pack("<IHHHHHHIIIHHHHHII", 0x02014B50, made_by, 20, e.flags, e.method, time, date,
+                               e.crc, len(e.payload), e.size, len(e.name), len(e.extra), 0, 0, 0, external, offset)
+        central += e.name + e.extra
+    cd_offset = len(out)
+    out += central
+    count = len(records)
+    if zip64:
+        eocd64 = len(out)
+        out += struct.pack("<IQHHIIQQQQ", 0x06064B50, 44, 45, 45, 0, 0, count, count, len(central), cd_offset)
+        out += struct.pack("<IIQI", 0x07064B50, 0, eocd64, 1)
+        out += struct.pack("<IHHHHIIH", 0x06054B50, 0, 0, 0xFFFF, 0xFFFF, 0xFFFFFFFF, 0xFFFFFFFF, len(comment))
+    else:
+        out += struct.pack("<IHHHHIIH", 0x06054B50, 0, 0, count, count, len(central), cd_offset, len(comment))
+    return bytes(out + comment)
+
+
+def deflate_raw(data):
+    c = zlib.compressobj(9, zlib.DEFLATED, -15)
+    return c.compress(data) + c.flush()
+
+
+def seven_zip(archive, files, *switches):
+    """Builds `archive` with 7-Zip from {name: bytes}. Returns False when 7-Zip is unavailable."""
+    if not os.path.exists(SEVEN_ZIP):
+        print("7-Zip not found, keeping the committed", archive)
+        return False
+    with tempfile.TemporaryDirectory() as tmp:
+        for name, data in files.items():
+            path = os.path.join(tmp, *name.split("/"))
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "wb") as f:
+                f.write(data)
+            os.utime(path, (MTIME, MTIME))
+        target = os.path.join(HERE, archive)
+        if os.path.exists(target):
+            os.remove(target)
+        subprocess.run([SEVEN_ZIP, "a", *switches, target, *files.keys()], cwd=tmp, check=True,
+                       stdout=subprocess.DEVNULL)
+    return True
+
+
+def make_zip_fixtures():
+    for suffix, method in [("stored", zipfile.ZIP_STORED), ("deflate", zipfile.ZIP_DEFLATED),
+                           ("bzip2", zipfile.ZIP_BZIP2), ("lzma", zipfile.ZIP_LZMA),
+                           ("zstd", zipfile.ZIP_ZSTANDARD)]:
+        write(f"basic-{suffix}.zip", zip_basic(method))
+
+    seven_zip("basic-deflate64.zip", FILES, "-tzip", "-mm=Deflate64", "-mx=9")
+    seven_zip("big-deflate64.zip", {"big.bin": lcg_bytes(50_000) * 3 + bytes(100_000)}, "-tzip", "-mm=Deflate64")
+
+    hello = FILES["hello.txt"]
+    write("xz-method.zip", build_zip([ZipEntry("hello.txt", hello, method=95, payload=lzma.compress(hello))]))
+
+    # Data descriptors: zipfile uses them when the output is not seekable.
+    class Unseekable(io.RawIOBase):
+        def __init__(self):
+            self.data = bytearray()
+
+        def writable(self):
+            return True
+
+        def write(self, b):
+            self.data += b
+            return len(b)
+
+    sink = Unseekable()
+    with zipfile.ZipFile(sink, "w", zipfile.ZIP_DEFLATED) as z:
+        for name, data in FILES.items():
+            with z.open(name, "w") as f:
+                f.write(data)
+    write("data-descriptor.zip", bytes(sink.data))
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as z:
+        with z.open("hello.txt", "w", force_zip64=True) as f:
+            f.write(hello)
+    write("zip64-entry.zip", buffer.getvalue())
+    write("zip64-eocd.zip", build_zip([ZipEntry("hello.txt", hello)], zip64=True))
+
+    write("sfx.zip", b"MZ" + bytes(998) + zip_basic(zipfile.ZIP_DEFLATED))
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as z:
+        z.comment = b"an archive comment"
+        z.writestr("hello.txt", hello)
+    write("comment.zip", buffer.getvalue())
+    buffer = io.BytesIO()
+    zipfile.ZipFile(buffer, "w").close()
+    write("empty.zip", buffer.getvalue())
+
+    # Names: legacy CP437 bytes, and the Info-ZIP Unicode Path extra field (0x7075).
+    cp437 = "caf\u00e9-\u00fc.txt".encode("cp437")
+    unicode_path = "\u00e9t\u00e9 \u2615.txt".encode("utf-8")
+    raw = b"ete ?.txt"
+    unicode_extra = struct.pack("<HHBI", 0x7075, 5 + len(unicode_path), 1, zlib.crc32(raw)) + unicode_path
+    write("names.zip", build_zip([
+        ZipEntry(cp437, b"cp437\n"),
+        ZipEntry(raw, b"unicode extra\n", extra=unicode_extra),
+        ZipEntry("utf8-\u00e9.txt", b"utf8\n", flags=0x800),
+    ]))
+
+    # Hostile and corrupt archives.
+    write("evil-traversal.zip", build_zip([ZipEntry("../evil.txt", b"evil\n"), ZipEntry("safe.txt", b"safe\n")]))
+    write("evil-absolute.zip", build_zip([ZipEntry("/tmp/digzip-evil.txt", b"evil\n"),
+                                          ZipEntry("C:\\digzip-evil.txt", b"evil\n"),
+                                          ZipEntry("safe.txt", b"safe\n")]))
+    write("evil-symlink.zip", build_zip([ZipEntry("up", b"../../outside", mode=0o120777),
+                                         ZipEntry("safe.txt", b"safe\n")]))
+    write("evil-overlap.zip", build_zip([ZipEntry("a.txt", b"x" * 100)], duplicate_first=True))
+    write("crc-mismatch.zip", build_zip([ZipEntry("bad.txt", b"payload\n", crc=0x12345678),
+                                         ZipEntry("good.txt", b"fine\n")]))
+    big = b"A" * 10_000
+    write("size-lie.zip", build_zip([ZipEntry("lie.txt", big, method=8, payload=deflate_raw(big), size=100),
+                                     ZipEntry("good.txt", b"fine\n")]))
+    write("encrypted-flag.zip", build_zip([ZipEntry("secret.txt", b"xxxxxxxxxxxxxxxx", flags=1)]))
+    write("unknown-method.zip", build_zip([ZipEntry("odd.bin", b"data", method=77),
+                                           ZipEntry("good.txt", b"fine\n")]))
+    zeros = bytes(32 << 20)
+    write("bomb.zip", build_zip([ZipEntry("zeros.bin", zeros, method=8, payload=deflate_raw(zeros))]))
+    basic = zip_basic(zipfile.ZIP_DEFLATED)
+    write("truncated.zip", basic[: len(basic) // 2])
+    corrupt = bytearray(basic)
+    start = corrupt.find(b"data/random.bin") + len("data/random.bin") + 9
+    corrupt[start:start + 64] = bytes(64)
+    write("corrupt-data.zip", bytes(corrupt))
 
 
 def main():
@@ -186,6 +388,8 @@ def main():
     write("truncated.zst", zstd.compress(lcg_bytes(5000))[:-20])
     write("truncated.tar", basic[: len(basic) // 2])
     write("garbage.bin", lcg_bytes(4096, seed=7))
+
+    make_zip_fixtures()
 
 
 if __name__ == "__main__":

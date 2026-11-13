@@ -4,8 +4,8 @@ A fast, multi-format, open source archive extractor written in C++17.
 DigZip is first a library (`DigZip::engine`); the command-line tool and the
 future graphical interface are thin clients of it.
 
-> **Status:** early development (v0.x). The engine reads TAR archives (plain or
-> compressed) and single compressed files; ZIP and 7z come next. The command-line
+> **Status:** early development (v0.x). The engine reads ZIP and TAR archives (plain or
+> compressed) and single compressed files; 7z comes next. The command-line
 > tool only has `--version` for now. See [CHANGELOG.md](CHANGELOG.md).
 
 ## Layout

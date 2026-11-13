@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace digzip::codec {
 
@@ -30,8 +31,27 @@ private:
     GzipHeader header_;
 };
 
+// Raw deflate (RFC 1951), through zlib.
+io::StreamPtr decode_deflate(io::StreamPtr upstream);
+
+// DigZip's own inflater. Decodes Deflate64 ("enhanced deflate": 64 KiB window, longer matches)
+// or, with deflate64 = false, plain deflate.
+io::StreamPtr decode_inflate(io::StreamPtr upstream, bool deflate64);
+
 // Concatenated bzip2 streams.
 io::StreamPtr decode_bzip2(io::StreamPtr upstream);
+
+// One filter of a raw liblzma chain: LZMA1, LZMA2, BCJ variants or Delta, with its 7z-style properties.
+struct LzmaFilter {
+    std::uint64_t id; // liblzma filter ID
+    std::vector<std::uint8_t> properties;
+};
+
+// Raw chain without .xz framing, as stored in ZIP (method 14) and 7z. Filters are listed in
+// encoding order: [BCJ, LZMA2] means BCJ ran first when compressing. `size` is the decoded size,
+// required for LZMA1 data without an end marker.
+io::StreamPtr decode_lzma_raw(io::StreamPtr upstream, const std::vector<LzmaFilter>& chain,
+                              std::optional<std::uint64_t> size, std::uint64_t memory_limit);
 
 // Concatenated .xz streams. `memory_limit` bounds the decoder allocation.
 io::StreamPtr decode_xz(io::StreamPtr upstream, std::uint64_t memory_limit);
