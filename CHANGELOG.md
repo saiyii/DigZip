@@ -6,50 +6,56 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Added
-- Repository skeleton: CMake build with presets, vcpkg manifest, dual MIT / Apache-2.0 license.
-- Engine library (`DigZip::engine`) linked against the zlib, bzip2, liblzma and zstd codecs.
-  Archive containers will be parsed by DigZip's own code.
-- `digzip::version_info()` reporting program, API and dependency versions (crypto backend included).
-- Command-line tool: `list`, `extract`, `test`, `--version`, `--help`; selection, strip, overwrite
-  policy, passwords (argument, file, environment variable), safety limits, `--json` output,
-  progress bar, clean stop on Ctrl+C, documented exit codes. UTF-8 arguments and output on Windows.
-- Catch2 test suite and GitHub Actions CI on Windows, macOS and Linux.
-- Engine API: `detect`, `list`, `extract` and `test`, with a per-entry `Report` of warnings and errors.
-- Formats: TAR (ustar, GNU long names, pax) plain or compressed with gzip, bzip2, xz or zstd,
-  and single compressed files (`.gz`, `.bz2`, `.xz`, `.zst`, concatenated streams included).
-  Container parsing and the gzip framing are DigZip's own code.
-- Security: paths with `..`, absolute paths and drive letters are refused; symbolic links must
-  resolve inside the destination and are created last; nothing is written through an existing
-  link; hard links may only target files from the same archive; devices, FIFOs and sockets are
-  skipped; setuid/setgid/sticky bits are dropped; Windows-invalid names are fixed (reserved device
-  names, forbidden characters, trailing dots), over-long names refused.
-- Anti-bomb limits (total size, entry count, compression ratio, path depth, decoder memory),
-  all configurable.
-- Files are written to a temporary name and renamed when complete: an error never leaves a
-  partial file, and existing files are never overwritten.
-- ZIP: in-house reader with Zip64, data descriptors, self-extracting (prepended) archives,
-  CP437 / UTF-8 / Info-ZIP Unicode names, NTFS / Unix / DOS times, Unix modes and symbolic
-  links. Methods: stored, deflate, Deflate64 (DigZip's own decoder), bzip2, LZMA, zstd, xz, PPMd.
-  Every entry is checked for exact size and CRC-32; overlapping entries (a zip bomb technique)
-  are refused; a broken entry does not stop the others.
-- 7z: in-house reader with encoded (compressed) headers, solid and non-solid blocks, empty files
-  and directories, Unix modes and symbolic links, modification times. Coders: LZMA, LZMA2,
-  BCJ x86 / ARM / ARM64 / ARMT / PPC / SPARC / IA64 / RISC-V, Delta (through liblzma), BCJ2
-  (DigZip's own decoder), PPMd, Deflate, Deflate64, BZip2, Zstandard, Copy. Header and data CRCs
-  are verified; a damaged solid block fails only its own files.
-- PPMd, written for DigZip: variant H for 7z and variant I revision 1 for ZIP (method 98),
-  including model restart and cut-off when the model memory is full.
-- Entry selection with include / exclude patterns (`*`, `?`), `strip_components`, overwrite policy
-  (skip, replace, rename to "name (1).ext"), progress callback (entries, bytes, archive position)
-  and cancellation from any thread, without partial files.
-- Encrypted archives: ZIP traditional encryption (ZipCrypto) and WinZip AES-128/192/256 (AE-1, AE-2,
-  with authentication code check), 7z AES-256 including encrypted headers. Several passwords can be
-  given; they are tried in order and never appear in messages. Cryptographic primitives come from the
-  system: CNG on Windows, CommonCrypto on macOS, OpenSSL 3 elsewhere.
-- Hardening: `DIGZIP_ENABLE_SANITIZERS` (AddressSanitizer, and UndefinedBehaviorSanitizer outside
-  MSVC), fuzz targets for whole archives, DigZip's own decoders and the path rules (libFuzzer, or a
-  replay-and-mutate driver run by CTest), CI jobs running the tests under ASan + UBSan and the
-  fuzzers with libFuzzer, hostile-header fixtures (absurd entry counts and metadata sizes).
-- The code builds without warnings with Clang (`-Wconversion`, `-Wsign-conversion`) and MinGW.
-- Documentation: README usage and library examples, security model in `docs/security.md`.
+## [0.1.0] - 2026-11-13
+
+First release: the extraction engine, the command-line tool and their safety net.
+Release notes: [docs/releases/0.1.0.md](docs/releases/0.1.0.md).
+
+### Formats
+- ZIP: Zip64, data descriptors, self-extracting (prepended) archives, CP437 / UTF-8 /
+  Info-ZIP Unicode names, NTFS / Unix / DOS times, Unix modes and symbolic links.
+  Methods: stored, deflate, Deflate64, bzip2, LZMA, PPMd (variant I), xz, zstd.
+- 7z: compressed and encrypted headers, solid and non-solid blocks, empty files and
+  directories, Unix modes and symbolic links. Coders: LZMA, LZMA2, PPMd (variant H), BZip2,
+  Deflate, Deflate64, Zstandard, Copy; BCJ x86 / ARM / ARMT / ARM64 / PPC / SPARC / IA64 /
+  RISC-V, BCJ2 and Delta filters.
+- TAR: ustar, GNU long names, pax records, base-256 numbers; plain or compressed with gzip,
+  bzip2, xz or zstd.
+- Single compressed files: `.gz` (all members), `.bz2`, `.xz`, `.zst`, concatenated streams.
+- Container parsing, the gzip framing, Deflate64, PPMd and BCJ2 are DigZip's own code;
+  zlib, bzip2, liblzma and zstd do the common decompression.
+
+### Encryption
+- ZipCrypto, WinZip AES-128/192/256 (AE-1 and AE-2, authentication code checked),
+  7z AES-256 including encrypted file names.
+- Several passwords, tried in order; they never appear in messages and derived keys are wiped.
+- Cryptographic primitives from the system: CNG on Windows, CommonCrypto on macOS,
+  OpenSSL 3 elsewhere (`DIGZIP_CRYPTO_BACKEND`).
+
+### Security
+- Absolute paths, drive letters, `..` and NUL characters are refused; Windows-invalid names
+  are fixed; over-long names and over-deep paths are refused.
+- Symbolic links must resolve inside the destination and are created last; nothing is written
+  through an existing link; hard links may only target files of the same archive.
+- Devices, FIFOs and sockets are skipped; setuid, setgid and sticky bits are dropped.
+- Limits on total size, entry count, compression ratio, path depth and decoder memory;
+  overlapping ZIP entries (zip bombs) refused; header counts checked before any allocation.
+- Every file is written to a temporary name and renamed when complete: no partial files.
+- Exact size and CRC-32 checked for every entry.
+
+### Library (`DigZip::engine`)
+- `detect`, `list`, `extract`, `test`; `Report` with per-entry warnings and errors.
+- Options: include / exclude patterns, `strip_components`, overwrite policy (skip, replace,
+  rename), passwords, limits, progress callback, cancellation from any thread.
+- `version_info()` with program, API and dependency versions. Static or shared library.
+
+### Command line (`digzip`)
+- `list`, `extract`, `test`, `--version`, `--help`, with every engine option.
+- Passwords from an argument, a file or an environment variable.
+- `--json` output, progress bar, clean stop on Ctrl+C, documented exit codes.
+- UTF-8 arguments, output and system messages on Windows.
+
+### Quality
+- Catch2 suite with valid, hostile and corrupt fixtures, CLI tests run as a subprocess.
+- AddressSanitizer + UndefinedBehaviorSanitizer builds, fuzz targets (libFuzzer or a
+  replay-and-mutate driver), CI on Windows, macOS and Linux.
