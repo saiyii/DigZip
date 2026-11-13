@@ -6,6 +6,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-13
+
+A graphical interface, and ready-to-run downloads.
+Release notes: [docs/releases/0.2.0.md](docs/releases/0.2.0.md).
+
 ### Added
 - Graphical interface `digzip-gui` (Qt 6 Widgets, `DIGZIP_BUILD_GUI`): open an archive with a
   button, by drag and drop or from the command line; sortable and filterable content list;

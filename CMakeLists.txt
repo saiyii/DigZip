@@ -14,7 +14,7 @@ if(DIGZIP_BUILD_TESTS)
 endif()
 
 project(DigZip
-    VERSION 0.1.0
+    VERSION 0.2.0
     DESCRIPTION "Fast, multi-format, open source archive extractor"
     LANGUAGES CXX)
 
