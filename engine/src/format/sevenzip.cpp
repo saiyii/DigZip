@@ -1,4 +1,6 @@
 #include "codec/decoders.hpp"
+#include "codec/encryption.hpp"
+#include "crypto/crypto.hpp"
 #include "format/common.hpp"
 #include "format/reader.hpp"
 #include "text.hpp"
@@ -11,6 +13,8 @@
 #include <algorithm>
 #include <cstring>
 #include <exception>
+#include <map>
+#include <set>
 
 namespace digzip::format {
 
@@ -299,6 +303,13 @@ public:
         read_archive();
     }
 
+    ~SevenZipReader() override
+    {
+        for (auto& entry : keys_) {
+            crypto::wipe(entry.second.data(), entry.second.size());
+        }
+    }
+
     bool next(Entry& entry) override
     {
         finish_current();
@@ -420,16 +431,90 @@ private:
         if (folder.size() > kMaxHeaderSize) {
             throw Error(ErrorCode::LimitExceeded, "7z: the archive header is too large");
         }
-        if (uses_encryption(folder)) {
-            throw Error(ErrorCode::Unsupported, "7z: archives with encrypted file names are not supported yet");
+        const auto decode = [&] {
+            std::vector<std::uint8_t> decoded(static_cast<std::size_t>(folder.size()));
+            auto stream = build_folder(streams, 0);
+            stream->read_exact(decoded.data(), decoded.size());
+            if (folder.crc && *folder.crc != crc32(0, decoded.data(), static_cast<uInt>(decoded.size()))) {
+                throw Error(ErrorCode::Checksum, "7z: header CRC mismatch");
+            }
+            return decoded;
+        };
+        return uses_encryption(folder) ? with_password(decode) : decode();
+    }
+
+    // Runs `attempt` with each password in turn, starting with the last one that worked. 7z has no
+    // password check value: a wrong key shows up as invalid compressed data or a CRC mismatch.
+    template <typename Attempt>
+    auto with_password(const Attempt& attempt)
+    {
+        const std::vector<std::string>& passwords = monitor_.passwords();
+        if (passwords.empty()) {
+            throw Error(ErrorCode::PasswordRequired, "7z: the data is encrypted, a password is needed");
         }
-        std::vector<std::uint8_t> decoded(static_cast<std::size_t>(folder.size()));
-        auto stream = build_folder(streams, 0);
-        stream->read_exact(decoded.data(), decoded.size());
-        if (folder.crc && *folder.crc != crc32(0, decoded.data(), static_cast<uInt>(decoded.size()))) {
-            throw Error(ErrorCode::Checksum, "7z: header CRC mismatch");
+        for (std::size_t k = 0; k < passwords.size(); ++k) {
+            password_ = (preferred_password_ + k) % passwords.size();
+            try {
+                auto result = attempt();
+                preferred_password_ = password_;
+                return result;
+            } catch (const Error& e) {
+                const ErrorCode code = e.code();
+                if (code != ErrorCode::Corrupt && code != ErrorCode::Checksum && code != ErrorCode::WrongPassword) {
+                    throw;
+                }
+            }
         }
-        return decoded;
+        throw Error(ErrorCode::WrongPassword, "7z: none of the given passwords decrypts the data (or it is damaged)");
+    }
+
+    // Checks the current password on the start of a block: the whole first file when it is small
+    // and has a CRC (needed when the data is stored without compression), else its first bytes.
+    bool probe_password(std::size_t folder_index)
+    {
+        constexpr std::uint64_t kFullCheckLimit = 4ull << 20;
+        std::size_t stream = 0;
+        for (std::size_t f = 0; f < folder_index; ++f) {
+            stream += streams_.folders[f].substreams;
+        }
+        auto decoded = build_folder(streams_, folder_index);
+        std::vector<std::uint8_t> buffer(1 << 16);
+        if (stream < streams_.sizes.size() && streams_.crcs[stream] && streams_.sizes[stream] <= kFullCheckLimit) {
+            std::uint64_t left = streams_.sizes[stream];
+            std::uint32_t crc = 0;
+            while (left > 0) {
+                const auto n = static_cast<std::size_t>(std::min<std::uint64_t>(left, buffer.size()));
+                decoded->read_exact(buffer.data(), n);
+                crc = static_cast<std::uint32_t>(crc32(crc, buffer.data(), static_cast<uInt>(n)));
+                left -= n;
+            }
+            if (crc != *streams_.crcs[stream]) {
+                throw Error(ErrorCode::WrongPassword, "7z: wrong password");
+            }
+        } else {
+            const std::uint64_t probe = std::min<std::uint64_t>(4096, streams_.folders[folder_index].size());
+            decoded->read_up_to(buffer.data(), static_cast<std::size_t>(probe));
+        }
+        return true;
+    }
+
+    // True when the preferred password already decrypted data with the same key as this block.
+    bool validated(const Folder& folder) const
+    {
+        return std::all_of(folder.coders.begin(), folder.coders.end(), [&](const Coder& c) {
+            return c.method != method::Aes ||
+                   validated_.count({preferred_password_, codec::sevenzip_key_identity(c.properties)}) != 0;
+        });
+    }
+
+    const codec::Key256& key_for(const Coder& coder) const
+    {
+        const auto id = std::make_pair(password_, codec::sevenzip_key_identity(coder.properties));
+        auto it = keys_.find(id);
+        if (it == keys_.end()) {
+            it = keys_.emplace(id, codec::derive_7z_key(coder.properties, monitor_.passwords()[password_])).first;
+        }
+        return it->second;
     }
 
     void read_header(HeaderReader& r)
@@ -895,7 +980,10 @@ private:
         case method::Bcj2:
             return codec::decode_bcj2(std::move(inputs), folder.unpack_sizes[index]);
         case method::Aes:
-            throw Error(ErrorCode::Unsupported, "7z: encrypted archives are not supported yet");
+            if (monitor_.passwords().empty()) {
+                throw Error(ErrorCode::PasswordRequired, "7z: the data is encrypted, a password is needed");
+            }
+            return codec::decrypt_7z_aes(std::move(inputs[0]), coder.properties, key_for(coder));
         case method::Ppmd:
             return codec::decode_ppmd7(std::move(inputs[0]), coder.properties, folder.unpack_sizes[index], memory);
         default:
@@ -910,6 +998,19 @@ private:
             if (item.folder != current_folder_ || !folder_stream_) {
                 folder_stream_.reset();
                 current_folder_ = item.folder;
+                const Folder& folder = streams_.folders[item.folder];
+                if (uses_encryption(folder)) {
+                    if (validated(folder)) {
+                        password_ = preferred_password_;
+                    } else {
+                        with_password([&] { return probe_password(item.folder); });
+                        for (const Coder& coder : folder.coders) {
+                            if (coder.method == method::Aes) {
+                                validated_.emplace(password_, codec::sevenzip_key_identity(coder.properties));
+                            }
+                        }
+                    }
+                }
                 auto decoded = build_folder(streams_, item.folder);
                 folder_stream_ = std::make_unique<GuardedStream>(
                     std::make_unique<MonitoredStream>(std::move(decoded), monitor_));
@@ -967,6 +1068,12 @@ private:
     Streams streams_;
     std::vector<Item> items_;
     std::size_t index_ = static_cast<std::size_t>(-1);
+
+    std::size_t password_ = 0;           // password used while building decoders
+    std::size_t preferred_password_ = 0; // last password that worked
+    // Derived keys and validated passwords, by (password index, key identity).
+    mutable std::map<std::pair<std::size_t, std::vector<std::uint8_t>>, codec::Key256> keys_;
+    std::set<std::pair<std::size_t, std::vector<std::uint8_t>>> validated_;
 
     std::size_t current_folder_ = static_cast<std::size_t>(-1);
     io::StreamPtr folder_stream_;

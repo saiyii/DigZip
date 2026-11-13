@@ -38,6 +38,10 @@ jobs:
         if: runner.os != 'Windows'
         run: $VCPKG_ROOT/bootstrap-vcpkg.sh -disableMetrics
 
+      - name: Install OpenSSL development files (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libssl-dev
+
       - name: Restore vcpkg binary cache
         uses: actions/cache@v4
         with:

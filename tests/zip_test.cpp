@@ -174,7 +174,7 @@ TEST_CASE("truncated, encrypted and oversized zips are reported")
 {
     TempDir out;
     CHECK(fixtures::has_issue(extract(fixtures::path("truncated.zip"), out / "t"), ErrorCode::Corrupt));
-    CHECK(fixtures::has_issue(extract(fixtures::path("encrypted-flag.zip"), out / "e"), ErrorCode::Unsupported));
+    CHECK(fixtures::has_issue(extract(fixtures::path("encrypted-flag.zip"), out / "e"), ErrorCode::PasswordRequired));
 
     ExtractOptions strict;
     strict.limits.max_ratio = 100;

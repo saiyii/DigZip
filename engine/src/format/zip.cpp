@@ -1,4 +1,5 @@
 #include "codec/decoders.hpp"
+#include "codec/encryption.hpp"
 #include "format/common.hpp"
 #include "format/reader.hpp"
 #include "text.hpp"
@@ -73,7 +74,14 @@ struct ZipItem {
     std::uint64_t size = 0;
     std::uint64_t offset = 0; // local header, before the prepended-data correction
     std::uint32_t external = 0;
+    std::uint16_t dos_time = 0;
     std::optional<Timestamp> mtime;
+    // WinZip AES (method 99): key strength (1-3, 0 when absent), AE version and real method.
+    unsigned aes_strength = 0;
+    unsigned aes_version = 0;
+    std::uint16_t aes_method = 0;
+
+    std::uint16_t real_method() const { return aes_strength != 0 ? aes_method : method; }
 };
 
 // Reads the variable fields of a central directory record from its extra data.
@@ -123,6 +131,13 @@ void apply_extra(ZipItem& item, const std::uint8_t* extra, std::size_t size, con
         case 0x5455: // Info-ZIP extended timestamp
             if (length >= 5 && (data[0] & 1)) {
                 unix_time = Timestamp{static_cast<std::int32_t>(le32(data + 1)), 0};
+            }
+            break;
+        case 0x9901: // WinZip AES
+            if (length >= 7 && data[2] == 'A' && data[3] == 'E') {
+                item.aes_version = le16(data);
+                item.aes_strength = data[4];
+                item.aes_method = le16(data + 5);
             }
             break;
         case 0x7075: // Info-ZIP Unicode path, valid only if it matches the stored name
@@ -204,8 +219,13 @@ public:
         entry.crc32 = item.crc;
         entry.mtime = item.mtime;
         entry.encrypted = (item.flags & kFlagEncrypted) != 0;
-        const char* method = method_name(item.method);
-        entry.method = method != nullptr ? method : "method " + std::to_string(item.method);
+        const char* method = method_name(item.real_method());
+        entry.method = method != nullptr ? method : "method " + std::to_string(item.real_method());
+        if (item.aes_strength != 0) {
+            entry.method += "+aes" + std::to_string(64 + 64 * item.aes_strength);
+        } else if (entry.encrypted) {
+            entry.method += "+zipcrypto";
+        }
         entry.type = entry_type(item, entry.mode);
         if (entry.path.size() > 1 && entry.path.back() == '/') {
             entry.type = EntryType::Directory;
@@ -343,7 +363,8 @@ private:
         item.made_by = le16(h + 4);
         item.flags = le16(h + 8);
         item.method = le16(h + 10);
-        item.mtime = dos_time(le16(h + 12), le16(h + 14));
+        item.dos_time = le16(h + 12);
+        item.mtime = dos_time(item.dos_time, le16(h + 14));
         item.crc = le32(h + 16);
         item.packed = le32(h + 20);
         item.size = le32(h + 24);
@@ -425,8 +446,8 @@ private:
 
     io::StreamPtr open_entry(const ZipItem& item)
     {
-        if (item.flags & (kFlagEncrypted | kFlagStrongEncryption)) {
-            throw Error(ErrorCode::Unsupported, "zip: encrypted entries are not supported yet");
+        if (item.flags & kFlagStrongEncryption) {
+            throw Error(ErrorCode::Unsupported, "zip: PKWARE strong encryption is not supported");
         }
         std::uint8_t local[kLocalHeaderSize];
         const std::uint64_t local_offset = item.offset + shift_;
@@ -440,14 +461,46 @@ private:
         }
 
         auto raw = std::make_unique<io::SourceStream>(source_, data_offset, item.packed);
-        auto decoded = std::make_unique<MonitoredStream>(decoder(item, std::move(raw)), monitor_);
-        return std::make_unique<CheckedStream>(std::move(decoded), item.size, item.crc);
+        io::StreamPtr plain = (item.flags & kFlagEncrypted) ? decrypt(item, data_offset) : std::move(raw);
+        auto decoded = std::make_unique<MonitoredStream>(decoder(item, std::move(plain)), monitor_);
+        // AE-2 stores no CRC: the authentication code protects the data instead.
+        const bool has_crc = !(item.aes_strength != 0 && item.aes_version == 2);
+        return std::make_unique<CheckedStream>(std::move(decoded), item.size,
+                                               has_crc ? std::optional<std::uint32_t>(item.crc) : std::nullopt);
+    }
+
+    // Tries the passwords in order, starting with the last one that worked.
+    io::StreamPtr decrypt(const ZipItem& item, std::uint64_t data_offset)
+    {
+        const std::vector<std::string>& passwords = monitor_.passwords();
+        if (passwords.empty()) {
+            throw Error(ErrorCode::PasswordRequired, "zip: the entry is encrypted, a password is needed");
+        }
+        // ZipCrypto checks one byte of its header: the CRC's, or the time's with a data descriptor.
+        const auto check = static_cast<std::uint8_t>((item.flags & 0x08) ? item.dos_time >> 8 : item.crc >> 24);
+        for (std::size_t k = 0; k < passwords.size(); ++k) {
+            const std::size_t i = (preferred_password_ + k) % passwords.size();
+            auto raw = std::make_unique<io::SourceStream>(source_, data_offset, item.packed);
+            try {
+                io::StreamPtr plain =
+                    item.aes_strength != 0
+                        ? codec::decrypt_winzip_aes(std::move(raw), item.packed, item.aes_strength, passwords[i])
+                        : codec::decrypt_zipcrypto(std::move(raw), passwords[i], check);
+                preferred_password_ = i;
+                return plain;
+            } catch (const Error& e) {
+                if (e.code() != ErrorCode::WrongPassword) {
+                    throw;
+                }
+            }
+        }
+        throw Error(ErrorCode::WrongPassword, "zip: none of the given passwords decrypts the entry");
     }
 
     io::StreamPtr decoder(const ZipItem& item, io::StreamPtr raw) const
     {
         const std::uint64_t memory = monitor_.limits().max_memory;
-        switch (item.method) {
+        switch (item.real_method()) {
         case 0:
             return raw;
         case 8:
@@ -474,9 +527,9 @@ private:
         case 95:
             return codec::decode_xz(std::move(raw), memory);
         default: {
-            const char* name = method_name(item.method);
+            const char* name = method_name(item.real_method());
             throw Error(ErrorCode::Unsupported, std::string("zip: compression method ") +
-                                                    (name != nullptr ? name : std::to_string(item.method)) +
+                                                    (name != nullptr ? name : std::to_string(item.real_method())) +
                                                     " is not supported");
         }
         }
@@ -488,6 +541,7 @@ private:
     std::uint64_t directory_start_ = 0;
     std::uint64_t shift_ = 0;
     std::size_t index_ = static_cast<std::size_t>(-1);
+    std::size_t preferred_password_ = 0;
     io::StreamPtr stream_;
 };
 

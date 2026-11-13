@@ -13,6 +13,12 @@
     "zstd"
   ],
   "features": {
+    "openssl": {
+      "description": "OpenSSL from vcpkg, to build the OpenSSL crypto backend where the system has none",
+      "dependencies": [
+        "openssl"
+      ]
+    },
     "tests": {
       "description": "Unit and integration tests",
       "dependencies": [

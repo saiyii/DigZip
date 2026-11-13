@@ -21,8 +21,9 @@ future graphical interface are thin clients of it.
 ## Building
 
 Requirements: CMake 3.21+, a C++17 compiler (MSVC 2022, GCC 9+, Clang 10+),
-and [vcpkg](https://github.com/microsoft/vcpkg) with the `VCPKG_ROOT`
-environment variable pointing to it. vcpkg builds the codec libraries
+[vcpkg](https://github.com/microsoft/vcpkg) with the `VCPKG_ROOT`
+environment variable pointing to it, and on Linux the OpenSSL 3 development
+files (`libssl-dev` or `openssl-devel`). vcpkg builds the codec libraries
 (zlib, bzip2, liblzma, zstd) on the first configure, which takes a few minutes.
 
 DigZip parses archive containers (ZIP, TAR, 7z, ...) with its own code and
@@ -44,6 +45,7 @@ The binaries land in `build/<preset>/bin/`.
 | `DIGZIP_BUILD_TESTS` | `ON` | Build the test suite (pulls Catch2 through vcpkg). |
 | `DIGZIP_WARNINGS_AS_ERRORS` | `OFF` | Treat warnings as errors (`ON` in CI). |
 | `BUILD_SHARED_LIBS` | `OFF` | Build the engine as a shared library. |
+| `DIGZIP_CRYPTO_BACKEND` | per system | `cng` (Windows), `commoncrypto` (macOS) or `openssl`. With `openssl` on a system without it, add the `openssl` vcpkg feature (`-DVCPKG_MANIFEST_FEATURES="tests;openssl"`). |
 
 ## Privacy
 

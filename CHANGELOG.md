@@ -41,3 +41,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - Entry selection with include / exclude patterns (`*`, `?`), `strip_components`, overwrite policy
   (skip, replace, rename to "name (1).ext"), progress callback (entries, bytes, archive position)
   and cancellation from any thread, without partial files.
+- Encrypted archives: ZIP traditional encryption (ZipCrypto) and WinZip AES-128/192/256 (AE-1, AE-2,
+  with authentication code check), 7z AES-256 including encrypted headers. Several passwords can be
+  given; they are tried in order and never appear in messages. Cryptographic primitives come from the
+  system: CNG on Windows, CommonCrypto on macOS, OpenSSL 3 elsewhere.

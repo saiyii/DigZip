@@ -3,6 +3,17 @@ find_package(BZip2 REQUIRED)
 find_package(LibLZMA REQUIRED)
 find_package(zstd CONFIG REQUIRED)
 
+# Cryptographic primitives come from the operating system.
+if(WIN32)
+    set(digzip_default_crypto cng)
+elseif(APPLE)
+    set(digzip_default_crypto commoncrypto)
+else()
+    set(digzip_default_crypto openssl)
+endif()
+set(DIGZIP_CRYPTO_BACKEND "${digzip_default_crypto}" CACHE STRING "Cryptography backend: cng, commoncrypto or openssl")
+set_property(CACHE DIGZIP_CRYPTO_BACKEND PROPERTY STRINGS cng commoncrypto openssl)
+
 # All engine code is compiled once into an object library, shared by the public library and by
 # the tests, which also exercise internal components.
 add_library(digzip_objects OBJECT
@@ -15,6 +26,7 @@ add_library(digzip_objects OBJECT
     src/codec/bcj2.cpp
     src/codec/bzip2.cpp
     src/codec/deflate.cpp
+    src/codec/encryption.cpp
     src/codec/gzip.cpp
     src/codec/inflate.cpp
     src/codec/lzma_raw.cpp
@@ -67,6 +79,19 @@ target_link_libraries(digzip_objects PUBLIC
     LibLZMA::LibLZMA
     zstd::libzstd)
 digzip_set_warnings(digzip_objects)
+
+if(DIGZIP_CRYPTO_BACKEND STREQUAL "cng")
+    target_sources(digzip_objects PRIVATE src/crypto/crypto_cng.cpp)
+    target_link_libraries(digzip_objects PUBLIC bcrypt)
+elseif(DIGZIP_CRYPTO_BACKEND STREQUAL "commoncrypto")
+    target_sources(digzip_objects PRIVATE src/crypto/crypto_commoncrypto.cpp)
+elseif(DIGZIP_CRYPTO_BACKEND STREQUAL "openssl")
+    find_package(OpenSSL 3 REQUIRED COMPONENTS Crypto)
+    target_sources(digzip_objects PRIVATE src/crypto/crypto_openssl.cpp)
+    target_link_libraries(digzip_objects PUBLIC OpenSSL::Crypto)
+else()
+    message(FATAL_ERROR "Unknown DIGZIP_CRYPTO_BACKEND: ${DIGZIP_CRYPTO_BACKEND}")
+endif()
 
 add_library(digzip_engine)
 add_library(DigZip::engine ALIAS digzip_engine)

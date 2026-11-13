@@ -399,6 +399,18 @@ def make_7z_fixtures():
     seven_zip("ppmd-o4-1m.zip", text, "-tzip", "-mm=PPMd:o=4:mem=1m")
     seven_zip("ppmd-cutoff.zip", text, "-tzip", "-mm=PPMd", "-mx=9")
     seven_zip("ppmd-cutoff-1m.zip", text, "-tzip", "-mm=PPMd:o=12:mem=1m", "-mx=9")
+    # Encrypted archives. The non-ASCII password checks the UTF-8 / UTF-16 handling.
+    secret = {"secret.txt": b"top secret\n", "notes.txt": word_text(3000), "data/random.bin": FILES["data/random.bin"]}
+    seven_zip("zipcrypto.zip", secret, "-tzip", "-psecret", "-mem=ZipCrypto")
+    seven_zip("zipcrypto-stored.zip", secret, "-tzip", "-psecret", "-mem=ZipCrypto", "-mx=0")
+    for bits in (128, 192, 256):
+        seven_zip(f"aes{bits}.zip", secret, "-tzip", "-psecret", f"-mem=AES{bits}")
+    seven_zip("aes256-stored.zip", secret, "-tzip", "-psecret", "-mem=AES256", "-mx=0")
+    seven_zip("encrypted.7z", secret, "-t7z", "-psecret")
+    seven_zip("encrypted-header.7z", secret, "-t7z", "-psecret", "-mhe=on")
+    seven_zip("encrypted-unicode.7z", secret, "-t7z", "-ppässwörd ☕", "-mhe=on")
+    seven_zip("encrypted-non-solid.7z", secret, "-t7z", "-psecret", "-ms=off")
+    seven_zip("encrypted-copy.7z", secret, "-t7z", "-psecret", "-m0=Copy")
     seven_zip("ppmd-binary.7z", {"data/random.bin": FILES["data/random.bin"], "hello.txt": FILES["hello.txt"]},
               "-t7z", "-m0=PPMd")
 

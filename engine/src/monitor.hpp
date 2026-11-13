@@ -19,6 +19,7 @@ public:
             std::shared_ptr<const std::atomic<std::uint64_t>> archive_read = nullptr);
 
     const Limits& limits() const { return options_.limits; }
+    const std::vector<std::string>& passwords() const { return options_.passwords; }
 
     void add_entry(const std::string& path);
     void add_bytes(std::uint64_t count);

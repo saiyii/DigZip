@@ -27,6 +27,10 @@ const char* to_string(ErrorCode code) noexcept
         return "invalid_argument";
     case ErrorCode::Cancelled:
         return "cancelled";
+    case ErrorCode::PasswordRequired:
+        return "password_required";
+    case ErrorCode::WrongPassword:
+        return "wrong_password";
     }
     return "unknown";
 }

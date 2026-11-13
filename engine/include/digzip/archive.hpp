@@ -35,6 +35,9 @@ struct Progress {
 struct Options {
     Limits limits;
 
+    // Passwords (UTF-8) for encrypted archives, tried in order. DigZip never logs or reports them.
+    std::vector<std::string> passwords;
+
     // Entry selection, applied to the paths as stored in the archive. '*' matches any sequence of
     // characters (including '/'), '?' any single character. A pattern also matches everything below
     // a directory it matches. An entry is processed if it matches an include pattern (or there are

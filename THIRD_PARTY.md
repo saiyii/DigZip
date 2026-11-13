@@ -23,11 +23,16 @@ the decompression codecs come from external libraries.
 | Catch2 v3 | Unit tests | BSL-1.0 |
 | vcpkg | Dependency builds | MIT. Telemetry is disabled (`-disableMetrics`, `VCPKG_DISABLE_METRICS`). |
 
-## Planned
+## Provided by the operating system
 
-| Component | Version | Notes |
+AES, SHA-256, HMAC-SHA1 and PBKDF2 for encrypted archives. The block cipher modes (CTR, CBC),
+ZipCrypto and the 7z key derivation are DigZip's own code.
+
+| Component | Platform | License |
 |---|---|---|
-| System cryptography | v0.x phase 3 | AES, SHA, PBKDF2 for encrypted archives: CNG on Windows, CommonCrypto on macOS, OpenSSL 3 (Apache-2.0) on Linux. |
+| CNG (bcrypt.dll) | Windows | Part of Windows |
+| CommonCrypto | macOS | Part of macOS |
+| OpenSSL 3 (libcrypto) | Linux and other Unix systems | Apache-2.0 |
 
 ## Explicitly excluded
 

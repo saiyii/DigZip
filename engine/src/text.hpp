@@ -16,6 +16,9 @@ std::string cp437_to_utf8(std::string_view bytes);
 // Little-endian UTF-16; unpaired surrogates become U+FFFD.
 std::string utf16le_to_utf8(const std::uint8_t* data, std::size_t size);
 
+// UTF-8 to little-endian UTF-16; invalid sequences become U+FFFD.
+std::string utf8_to_utf16le(std::string_view utf8);
+
 // Number of UTF-16 code units needed for valid UTF-8 text.
 std::size_t utf16_length(std::string_view utf8);
 

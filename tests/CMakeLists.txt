@@ -3,6 +3,7 @@ include(Catch)
 
 add_executable(digzip_tests
     codec_test.cpp
+    encryption_test.cpp
     formats_test.cpp
     options_test.cpp
     path_rules_test.cpp

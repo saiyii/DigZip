@@ -125,6 +125,39 @@ std::string utf16le_to_utf8(const std::uint8_t* data, std::size_t size)
     return out;
 }
 
+std::string utf8_to_utf16le(std::string_view utf8)
+{
+    std::string out;
+    out.reserve(utf8.size() * 2);
+    const auto put = [&](char32_t unit) {
+        out += static_cast<char>(unit & 0xFF);
+        out += static_cast<char>(unit >> 8);
+    };
+    std::size_t i = 0;
+    while (i < utf8.size()) {
+        const auto c = static_cast<unsigned char>(utf8[i]);
+        std::size_t length = c < 0x80 ? 1 : (c & 0xE0) == 0xC0 ? 2 : (c & 0xF0) == 0xE0 ? 3 : (c & 0xF8) == 0xF0 ? 4 : 0;
+        if (length == 0 || i + length > utf8.size() || !is_valid_utf8(utf8.substr(i, length))) {
+            put(0xFFFD);
+            ++i;
+            continue;
+        }
+        char32_t cp = length == 1 ? c : c & (0xFFu >> (length + 1));
+        for (std::size_t k = 1; k < length; ++k) {
+            cp = (cp << 6) | (static_cast<unsigned char>(utf8[i + k]) & 0x3Fu);
+        }
+        if (cp >= 0x10000) {
+            cp -= 0x10000;
+            put(0xD800 + (cp >> 10));
+            put(0xDC00 + (cp & 0x3FF));
+        } else {
+            put(cp);
+        }
+        i += length;
+    }
+    return out;
+}
+
 std::size_t utf16_length(std::string_view utf8)
 {
     std::size_t units = 0;
