@@ -1,4 +1,5 @@
 #include "codec/decoders.hpp"
+#include "format/common.hpp"
 #include "format/reader.hpp"
 #include "text.hpp"
 
@@ -41,22 +42,6 @@ constexpr std::uint8_t kHostMacOs = 19;
     throw Error(ErrorCode::Corrupt, "zip: " + what);
 }
 
-std::uint16_t le16(const std::uint8_t* p)
-{
-    return static_cast<std::uint16_t>(p[0] | (p[1] << 8));
-}
-
-std::uint32_t le32(const std::uint8_t* p)
-{
-    return static_cast<std::uint32_t>(p[0]) | (static_cast<std::uint32_t>(p[1]) << 8) |
-           (static_cast<std::uint32_t>(p[2]) << 16) | (static_cast<std::uint32_t>(p[3]) << 24);
-}
-
-std::uint64_t le64(const std::uint8_t* p)
-{
-    return le32(p) | (static_cast<std::uint64_t>(le32(p + 4)) << 32);
-}
-
 // MS-DOS date and time, in local time.
 std::optional<Timestamp> dos_time(std::uint16_t time, std::uint16_t date)
 {
@@ -76,13 +61,6 @@ std::optional<Timestamp> dos_time(std::uint16_t time, std::uint16_t date)
         return std::nullopt;
     }
     return Timestamp{static_cast<std::int64_t>(t), 0};
-}
-
-Timestamp from_filetime(std::uint64_t ticks)
-{
-    constexpr std::int64_t kEpochOffset = 11'644'473'600;
-    return {static_cast<std::int64_t>(ticks / 10'000'000) - kEpochOffset,
-            static_cast<std::uint32_t>((ticks % 10'000'000) * 100)};
 }
 
 struct ZipItem {
@@ -203,49 +181,6 @@ const char* method_name(std::uint16_t method)
         return nullptr;
     }
 }
-
-// Checks the decoded size and CRC-32 of one entry against the central directory.
-class CheckedStream final : public io::InputStream {
-public:
-    CheckedStream(io::StreamPtr upstream, std::uint64_t size, std::uint32_t crc)
-        : upstream_(std::move(upstream)), expected_size_(size), expected_crc_(crc)
-    {
-    }
-
-    std::size_t read(std::uint8_t* data, std::size_t size) override
-    {
-        if (done_ || size == 0) {
-            return 0;
-        }
-        const std::uint64_t remaining = expected_size_ - produced_;
-        if (remaining == 0) {
-            std::uint8_t extra = 0;
-            if (upstream_->read(&extra, 1) != 0) {
-                throw Error(ErrorCode::Corrupt, "zip: the entry holds more data than declared");
-            }
-            if (crc_ != expected_crc_) {
-                throw Error(ErrorCode::Checksum, "zip: CRC-32 mismatch, the entry is corrupt");
-            }
-            done_ = true;
-            return 0;
-        }
-        const std::size_t n = upstream_->read(data, static_cast<std::size_t>(std::min<std::uint64_t>(size, remaining)));
-        if (n == 0) {
-            throw Error(ErrorCode::Corrupt, "zip: the entry holds less data than declared");
-        }
-        crc_ = static_cast<std::uint32_t>(crc32(crc_, data, static_cast<uInt>(n)));
-        produced_ += n;
-        return n;
-    }
-
-private:
-    io::StreamPtr upstream_;
-    std::uint64_t expected_size_;
-    std::uint32_t expected_crc_;
-    std::uint64_t produced_ = 0;
-    std::uint32_t crc_ = 0;
-    bool done_ = false;
-};
 
 class ZipReader final : public ArchiveReader {
 public:

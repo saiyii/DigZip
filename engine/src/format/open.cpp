@@ -107,8 +107,6 @@ std::string raw_entry_name(const std::filesystem::path& archive, const std::stri
 [[noreturn]] void unsupported_container(Container container)
 {
     switch (container) {
-    case Container::SevenZip:
-        throw Error(ErrorCode::Unsupported, "7z support is not available yet");
     case Container::Rar:
         throw Error(ErrorCode::Unsupported, "RAR archives need the optional RAR module, which is not part of this build");
     default:
@@ -145,6 +143,8 @@ OpenedArchive open_archive(io::SourcePtr source, const std::filesystem::path& pa
             return {sniffed, make_tar_reader(std::make_unique<BudgetStream>(std::move(whole), budget))};
         case Container::Zip:
             return {sniffed, make_zip_reader(source, budget)};
+        case Container::SevenZip:
+            return {sniffed, make_sevenzip_reader(source, budget)};
         default:
             unsupported_container(sniffed.container);
         }

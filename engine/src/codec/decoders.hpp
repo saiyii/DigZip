@@ -53,6 +53,9 @@ struct LzmaFilter {
 io::StreamPtr decode_lzma_raw(io::StreamPtr upstream, const std::vector<LzmaFilter>& chain,
                               std::optional<std::uint64_t> size, std::uint64_t memory_limit);
 
+// 7z BCJ2 x86 filter. Inputs: main, call, jump and range-coded streams; `size` is the output size.
+io::StreamPtr decode_bcj2(std::vector<io::StreamPtr> inputs, std::uint64_t size);
+
 // Concatenated .xz streams. `memory_limit` bounds the decoder allocation.
 io::StreamPtr decode_xz(io::StreamPtr upstream, std::uint64_t memory_limit);
 

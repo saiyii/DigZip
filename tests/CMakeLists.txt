@@ -7,6 +7,7 @@ add_executable(digzip_tests
     path_rules_test.cpp
     robustness_test.cpp
     security_test.cpp
+    sevenzip_test.cpp
     text_test.cpp
     version_test.cpp
     zip_test.cpp)

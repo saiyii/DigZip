@@ -33,6 +33,16 @@ inline std::vector<std::uint8_t> lcg_bytes(std::size_t count, std::uint32_t seed
     return out;
 }
 
+// Same as x86_like() in make_fixtures.py: random bytes with many CALL/JMP opcodes.
+inline std::vector<std::uint8_t> x86_like(std::size_t count)
+{
+    auto data = lcg_bytes(count, 99);
+    for (std::size_t i = 0; i + 5 < count; i += 23) {
+        data[i] = i % 2 ? 0xE8 : 0xE9;
+    }
+    return data;
+}
+
 inline std::vector<std::uint8_t> bytes(const std::string& s)
 {
     return {s.begin(), s.end()};

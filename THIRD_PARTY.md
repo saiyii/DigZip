@@ -13,7 +13,7 @@ the decompression codecs come from external libraries.
 |---|---|---|---|
 | zlib | Deflate (ZIP, GZ) | Zlib | |
 | bzip2 | BZ2, ZIP method 12 | bzip2 license (BSD-style) | Library only, the `bzip2` tool is not built. |
-| liblzma (xz) | XZ, LZMA/LZMA2 (7z, ZIP method 14), BCJ filters | 0BSD | |
+| liblzma (xz) | XZ, LZMA/LZMA2 (7z, ZIP method 14), BCJ and Delta filters | 0BSD | |
 | zstd | ZSTD, ZIP method 93 | BSD-3-Clause (dual with GPL-2.0; BSD is used) | |
 
 ## Build and test only (not distributed)

@@ -45,6 +45,7 @@ ArchiveFormat detect_format(const io::Source& source);
 std::unique_ptr<ArchiveReader> make_tar_reader(io::StreamPtr stream);
 std::unique_ptr<ArchiveReader> make_raw_reader(io::StreamPtr stream, Entry entry);
 std::unique_ptr<ArchiveReader> make_zip_reader(io::SourcePtr source, Budget& budget);
+std::unique_ptr<ArchiveReader> make_sevenzip_reader(io::SourcePtr source, Budget& budget);
 
 // True if the source ends with a ZIP central directory (also finds self-extracting archives).
 bool has_zip_directory(const io::Source& source);

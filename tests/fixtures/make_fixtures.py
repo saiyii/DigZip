@@ -295,6 +295,106 @@ def make_zip_fixtures():
     corrupt[start:start + 64] = bytes(64)
     write("corrupt-data.zip", bytes(corrupt))
 
+# ---------------------------------------------------------------------------
+# 7z
+
+
+def x86_like(count):
+    """Data with many CALL/JMP opcodes, so that BCJ and BCJ2 have work to do."""
+    data = bytearray(lcg_bytes(count, seed=99))
+    for i in range(0, count - 5, 23):
+        data[i] = 0xE8 if i % 2 else 0xE9
+    return bytes(data)
+
+
+def sz_number(n):
+    """7z variable-length number."""
+    if n < 0x80:
+        return bytes([n])
+    for extra in range(1, 9):
+        if extra == 8 or n < (1 << (8 * extra + 7 - extra)):
+            first = (0xFF << (8 - extra)) & 0xFF
+            if extra < 8:
+                first |= n >> (8 * extra)
+            return bytes([first]) + (n & ((1 << (8 * extra)) - 1)).to_bytes(extra, "little")
+
+
+def build_7z(files, method_id=b"\x00"):
+    """Minimal 7z writer: one Copy folder per file, plain header. For crafted test cases only.
+
+    `files` is a list of (name, data, attributes or None).
+    """
+    streams = [(name, data, attrs) for name, data, attrs in files]
+    packed = b"".join(data for _, data, _ in streams)
+    h = bytearray([0x01, 0x04])  # Header, MainStreamsInfo
+    h += b"\x06" + sz_number(0) + sz_number(len(streams)) + b"\x09"
+    for _, data, _ in streams:
+        h += sz_number(len(data))
+    h += b"\x00"
+    h += b"\x07\x0B" + sz_number(len(streams)) + b"\x00"
+    for _ in streams:
+        h += b"\x01" + bytes([len(method_id)]) + method_id
+    h += b"\x0C"
+    for _, data, _ in streams:
+        h += sz_number(len(data))
+    h += b"\x00"
+    h += b"\x08\x0A\x01"
+    for _, data, _ in streams:
+        h += struct.pack("<I", zlib.crc32(data))
+    h += b"\x00\x00"
+    h += b"\x05" + sz_number(len(streams))
+    names = b"\x00" + b"".join(name.encode("utf-16-le") + b"\x00\x00" for name, _, _ in streams)
+    h += b"\x11" + sz_number(len(names)) + names
+    if any(attrs is not None for _, _, attrs in streams):
+        attributes = b"\x01\x00" + b"".join(struct.pack("<I", attrs or 0) for _, _, attrs in streams)
+        h += b"\x15" + sz_number(len(attributes)) + attributes
+    h += b"\x00\x00"
+    start = struct.pack("<QQI", len(packed), len(h), zlib.crc32(h))
+    return b"7z\xbc\xaf\x27\x1c\x00\x04" + struct.pack("<I", zlib.crc32(start)) + start + packed + bytes(h)
+
+
+def make_7z_fixtures():
+    tree = dict(FILES)
+    tree["data/x86.bin"] = x86_like(16_000)
+    variants = {
+        "basic.7z": [],
+        "lzma.7z": ["-m0=LZMA"],
+        "bzip2.7z": ["-m0=BZip2"],
+        "deflate.7z": ["-m0=Deflate"],
+        "deflate64.7z": ["-m0=Deflate64"],
+        "copy.7z": ["-m0=Copy"],
+        "bcj.7z": ["-mf=BCJ"],
+        "arm64.7z": ["-mf=ARM64"],
+        "delta.7z": ["-mf=Delta:4"],
+        "bcj2.7z": ["-m0=BCJ2", "-m1=LZMA:d20", "-m2=LZMA:d20", "-m3=LZMA:d20",
+                    "-mb0s0:1", "-mb0s1:2", "-mb0s2:3"],
+        "non-solid.7z": ["-ms=off"],
+        "plain-header.7z": ["-mhc=off"],
+    }
+    for name, switches in variants.items():
+        seven_zip(name, tree, "-t7z", "-mtm=on", *switches)
+    seven_zip("bomb.7z", {"zeros.bin": bytes(32 << 20)}, "-t7z")
+
+    write("empty.7z", build_7z([]))
+    write("crafted.7z", build_7z([("a.txt", b"first\n", None), ("b/c.txt", b"second\n", None)]))
+    write("evil-traversal.7z", build_7z([("..\\evil.txt", b"evil\n", None), ("safe.txt", b"safe\n", None)]))
+    write("evil-absolute.7z", build_7z([("/tmp/digzip-evil.txt", b"evil\n", None), ("safe.txt", b"safe\n", None)]))
+    unix_link = 0x8000 | (0o120777 << 16)
+    write("evil-symlink.7z", build_7z([("up", b"../../outside", unix_link), ("safe.txt", b"safe\n", None)]))
+    write("unknown-method.7z", build_7z([("odd.bin", b"data", None)], method_id=b"\x7F\x7F"))
+
+    basic = open(os.path.join(HERE, "basic.7z"), "rb").read()
+    write("truncated.7z", basic[: len(basic) // 2])
+    damaged = bytearray(basic)
+    damaged[100] ^= 0xFF
+    write("corrupt-data.7z", bytes(damaged))
+    bad_header = bytearray(basic)
+    bad_header[-5] ^= 0xFF
+    write("bad-header-crc.7z", bytes(bad_header))
+    non_solid = bytearray(open(os.path.join(HERE, "non-solid.7z"), "rb").read())
+    non_solid[40] ^= 0xFF
+    write("corrupt-non-solid.7z", bytes(non_solid))
+
 
 def main():
     basic = make_tar(basic_tree)
@@ -390,6 +490,7 @@ def main():
     write("garbage.bin", lcg_bytes(4096, seed=7))
 
     make_zip_fixtures()
+    make_7z_fixtures()
 
 
 if __name__ == "__main__":

@@ -31,3 +31,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
   links. Methods: stored, deflate, Deflate64 (DigZip's own decoder), bzip2, LZMA, zstd, xz.
   Every entry is checked for exact size and CRC-32; overlapping entries (a zip bomb technique)
   are refused; a broken entry does not stop the others.
+- 7z: in-house reader with encoded (compressed) headers, solid and non-solid blocks, empty files
+  and directories, Unix modes and symbolic links, modification times. Coders: LZMA, LZMA2,
+  BCJ x86 / ARM / ARM64 / ARMT / PPC / SPARC / IA64 / RISC-V, Delta (through liblzma), BCJ2
+  (DigZip's own decoder), Deflate, Deflate64, BZip2, Zstandard, Copy. Header and data CRCs
+  are verified; a damaged solid block fails only its own files.
