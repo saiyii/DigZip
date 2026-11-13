@@ -152,3 +152,23 @@ TEST_CASE("a 7z decompression bomb is stopped")
     CHECK(fixtures::has_issue(report, ErrorCode::LimitExceeded));
     CHECK(fixtures::tree(out.path()).empty());
 }
+
+TEST_CASE("PPMd (variant H) 7z archives decode exactly")
+{
+    const std::string name =
+        GENERATE("ppmd.7z", "ppmd-o2.7z", "ppmd-o32.7z", "ppmd-small-memory.7z");
+    CAPTURE(name);
+    TempDir out;
+    const Report report = extract(fixtures::path(name), out.path());
+    CHECK(report.ok());
+    CHECK(fixtures::read_file(out / "text.txt") == fixtures::word_text(40'000));
+    CHECK(list(fixtures::path(name)).entries[0].method == "ppmd");
+}
+
+TEST_CASE("PPMd handles incompressible data")
+{
+    TempDir out;
+    REQUIRE(extract(fixtures::path("ppmd-binary.7z"), out.path()).ok());
+    CHECK(fixtures::read_file(out / "data/random.bin") == fixtures::lcg_bytes(20000));
+    CHECK(fixtures::read_file(out / "hello.txt") == fixtures::bytes("Hello, DigZip!\n"));
+}

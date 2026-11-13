@@ -183,3 +183,15 @@ TEST_CASE("truncated, encrypted and oversized zips are reported")
     CHECK(fixtures::has_issue(bomb, ErrorCode::LimitExceeded));
     CHECK_FALSE(fixtures::has_temp_leftovers(out.path()));
 }
+
+TEST_CASE("PPMd (variant I) zip entries decode exactly, with restart and cut-off restoration")
+{
+    const std::string name = GENERATE("ppmd.zip", "ppmd-o2.zip", "ppmd-o16-1m.zip", "ppmd-o4-1m.zip",
+                                      "ppmd-cutoff.zip", "ppmd-cutoff-1m.zip");
+    CAPTURE(name);
+    TempDir out;
+    const Report report = extract(fixtures::path(name), out.path());
+    CHECK(report.ok());
+    CHECK(fixtures::read_file(out / "text.txt") == fixtures::word_text(40'000));
+    CHECK(list(fixtures::path(name)).entries[0].method == "ppmd");
+}

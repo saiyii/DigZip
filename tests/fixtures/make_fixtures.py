@@ -353,6 +353,20 @@ def build_7z(files, method_id=b"\x00"):
     return b"7z\xbc\xaf\x27\x1c\x00\x04" + struct.pack("<I", zlib.crc32(start)) + start + packed + bytes(h)
 
 
+WORDS = ["archive", "zip", "seven", "data", "the", "of", "and", "to", "stream", "model",
+         "context", "symbol", "escape", "range", "decoder", "PPMd", "42", "1999", "\n", ","]
+
+
+def word_text(count, seed=2024):
+    """Pseudo-random word salad; tests/support/fixtures.hpp rebuilds the same bytes."""
+    out = []
+    x = seed
+    for _ in range(count):
+        x = (x * 1103515245 + 12345) & 0x7FFFFFFF
+        out.append(WORDS[(x >> 16) % len(WORDS)])
+    return " ".join(out).encode("ascii")
+
+
 def make_7z_fixtures():
     tree = dict(FILES)
     tree["data/x86.bin"] = x86_like(16_000)
@@ -374,6 +388,19 @@ def make_7z_fixtures():
     for name, switches in variants.items():
         seven_zip(name, tree, "-t7z", "-mtm=on", *switches)
     seven_zip("bomb.7z", {"zeros.bin": bytes(32 << 20)}, "-t7z")
+    text = {"text.txt": word_text(40_000)}
+    seven_zip("ppmd.7z", text, "-t7z", "-m0=PPMd")
+    seven_zip("ppmd-o2.7z", text, "-t7z", "-m0=PPMd:o=2")
+    seven_zip("ppmd-o32.7z", text, "-t7z", "-m0=PPMd:o=32:mem=4m")
+    seven_zip("ppmd-small-memory.7z", text, "-t7z", "-m0=PPMd:o=16:mem=64k")
+    seven_zip("ppmd.zip", text, "-tzip", "-mm=PPMd")
+    seven_zip("ppmd-o2.zip", text, "-tzip", "-mm=PPMd:o=2")
+    seven_zip("ppmd-o16-1m.zip", text, "-tzip", "-mm=PPMd:o=16:mem=1m")
+    seven_zip("ppmd-o4-1m.zip", text, "-tzip", "-mm=PPMd:o=4:mem=1m")
+    seven_zip("ppmd-cutoff.zip", text, "-tzip", "-mm=PPMd", "-mx=9")
+    seven_zip("ppmd-cutoff-1m.zip", text, "-tzip", "-mm=PPMd:o=12:mem=1m", "-mx=9")
+    seven_zip("ppmd-binary.7z", {"data/random.bin": FILES["data/random.bin"], "hello.txt": FILES["hello.txt"]},
+              "-t7z", "-m0=PPMd")
 
     write("empty.7z", build_7z([]))
     write("crafted.7z", build_7z([("a.txt", b"first\n", None), ("b/c.txt", b"second\n", None)]))

@@ -53,6 +53,13 @@ struct LzmaFilter {
 io::StreamPtr decode_lzma_raw(io::StreamPtr upstream, const std::vector<LzmaFilter>& chain,
                               std::optional<std::uint64_t> size, std::uint64_t memory_limit);
 
+// PPMd variant H as stored in 7z: 5 property bytes (order, memory size). `size` is the output size.
+io::StreamPtr decode_ppmd7(io::StreamPtr upstream, const std::vector<std::uint8_t>& properties, std::uint64_t size,
+                           std::uint64_t memory_limit);
+
+// PPMd variant I revision 1 as stored in ZIP (method 98): reads the 2-byte parameter header first.
+io::StreamPtr decode_ppmd8_zip(io::StreamPtr upstream, std::uint64_t size, std::uint64_t memory_limit);
+
 // 7z BCJ2 x86 filter. Inputs: main, call, jump and range-coded streams; `size` is the output size.
 io::StreamPtr decode_bcj2(std::vector<io::StreamPtr> inputs, std::uint64_t size);
 

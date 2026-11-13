@@ -96,3 +96,29 @@ TEST_CASE("the destination must be a directory")
     const Report report = extract(fixtures::path("basic.tar"), dir / "file");
     CHECK(fixtures::has_issue(report, ErrorCode::InvalidArgument));
 }
+
+TEST_CASE("damaged archives of every format never crash the engine")
+{
+    const std::string name = GENERATE("basic.tar.gz", "basic.tar.xz", "basic.tar.zst", "basic.tar.bz2",
+                                      "basic-deflate.zip", "basic-deflate64.zip", "basic-lzma.zip", "ppmd.zip",
+                                      "basic.7z", "bcj2.7z", "deflate64.7z", "ppmd.7z", "ppmd-o2.zip");
+    CAPTURE(name);
+    const auto original = fixtures::read_file(fixtures::path(name));
+    REQUIRE(original.size() > 64);
+    TempDir dir;
+    const fs::path damaged = dir / "damaged.bin";
+    for (std::size_t step = 0; step < 60; ++step) {
+        auto bytes = original;
+        const std::size_t position = (original.size() - 1) * step / 59;
+        bytes[position] ^= static_cast<std::uint8_t>(0x5A + step);
+        {
+            std::ofstream out(damaged, std::ios::binary | std::ios::trunc);
+            out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+        }
+        CAPTURE(position);
+        const Report report = test(damaged);
+        for (const Issue& issue : report.issues) {
+            CHECK_FALSE(issue.message.empty());
+        }
+    }
+}

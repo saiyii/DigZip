@@ -17,6 +17,8 @@ add_library(digzip_objects OBJECT
     src/codec/gzip.cpp
     src/codec/inflate.cpp
     src/codec/lzma_raw.cpp
+    src/codec/ppmd7.cpp
+    src/codec/ppmd8.cpp
     src/codec/xz.cpp
     src/codec/zstd.cpp
     src/extract/extractor.cpp

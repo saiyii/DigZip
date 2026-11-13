@@ -897,7 +897,7 @@ private:
         case method::Aes:
             throw Error(ErrorCode::Unsupported, "7z: encrypted archives are not supported yet");
         case method::Ppmd:
-            throw Error(ErrorCode::Unsupported, "7z: the PPMd method is not supported yet");
+            return codec::decode_ppmd7(std::move(inputs[0]), coder.properties, folder.unpack_sizes[index], memory);
         default:
             throw Error(ErrorCode::Unsupported, "7z: unsupported compression method");
         }

@@ -469,6 +469,8 @@ private:
         }
         case 93:
             return codec::decode_zstd(std::move(raw), memory);
+        case 98:
+            return codec::decode_ppmd8_zip(std::move(raw), item.size, memory);
         case 95:
             return codec::decode_xz(std::move(raw), memory);
         default: {

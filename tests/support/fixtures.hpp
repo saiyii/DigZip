@@ -43,6 +43,24 @@ inline std::vector<std::uint8_t> x86_like(std::size_t count)
     return data;
 }
 
+// Same as word_text() in make_fixtures.py.
+inline std::vector<std::uint8_t> word_text(std::size_t count, std::uint32_t seed = 2024)
+{
+    static const char* const words[] = {"archive", "zip",    "seven",  "data",    "the",  "of",   "and",
+                                        "to",      "stream", "model",  "context", "symbol", "escape", "range",
+                                        "decoder", "PPMd",   "42",     "1999",    "\n",   ","};
+    std::string out;
+    std::uint32_t x = seed;
+    for (std::size_t i = 0; i < count; ++i) {
+        x = (x * 1103515245u + 12345u) & 0x7FFFFFFFu;
+        if (i > 0) {
+            out += ' ';
+        }
+        out += words[(x >> 16) % (sizeof words / sizeof words[0])];
+    }
+    return {out.begin(), out.end()};
+}
+
 inline std::vector<std::uint8_t> bytes(const std::string& s)
 {
     return {s.begin(), s.end()};

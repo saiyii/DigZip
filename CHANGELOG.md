@@ -28,11 +28,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
   partial file, and existing files are never overwritten.
 - ZIP: in-house reader with Zip64, data descriptors, self-extracting (prepended) archives,
   CP437 / UTF-8 / Info-ZIP Unicode names, NTFS / Unix / DOS times, Unix modes and symbolic
-  links. Methods: stored, deflate, Deflate64 (DigZip's own decoder), bzip2, LZMA, zstd, xz.
+  links. Methods: stored, deflate, Deflate64 (DigZip's own decoder), bzip2, LZMA, zstd, xz, PPMd.
   Every entry is checked for exact size and CRC-32; overlapping entries (a zip bomb technique)
   are refused; a broken entry does not stop the others.
 - 7z: in-house reader with encoded (compressed) headers, solid and non-solid blocks, empty files
   and directories, Unix modes and symbolic links, modification times. Coders: LZMA, LZMA2,
   BCJ x86 / ARM / ARM64 / ARMT / PPC / SPARC / IA64 / RISC-V, Delta (through liblzma), BCJ2
-  (DigZip's own decoder), Deflate, Deflate64, BZip2, Zstandard, Copy. Header and data CRCs
+  (DigZip's own decoder), PPMd, Deflate, Deflate64, BZip2, Zstandard, Copy. Header and data CRCs
   are verified; a damaged solid block fails only its own files.
+- PPMd, written for DigZip: variant H for 7z and variant I revision 1 for ZIP (method 98),
+  including model restart and cut-off when the model memory is full.
