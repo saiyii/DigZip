@@ -115,12 +115,12 @@ public:
 
         std::uint8_t derived[2 * 32 + 2];
         const std::size_t derived_size = 2 * key_size + 2;
-        crypto::pbkdf2_hmac_sha1(reinterpret_cast<const std::uint8_t*>(password.data()), password.size(), salt,
-                                 salt_size, 1000, derived, derived_size);
+        crypto::pbkdf2(crypto::Hash::Sha1, reinterpret_cast<const std::uint8_t*>(password.data()), password.size(),
+                       salt, salt_size, 1000, derived, derived_size);
         const bool match = std::memcmp(derived + 2 * key_size, verifier, 2) == 0;
         if (match) {
             aes_ = std::make_unique<crypto::Aes>(derived, key_size);
-            mac_ = std::make_unique<crypto::HmacSha1>(derived + key_size, key_size);
+            mac_ = std::make_unique<crypto::Hmac>(crypto::Hash::Sha1, derived + key_size, key_size);
         }
         crypto::wipe(derived, sizeof derived);
         if (!match) {
@@ -186,7 +186,7 @@ private:
     io::StreamPtr upstream_;
     std::uint64_t remaining_ = 0;
     std::unique_ptr<crypto::Aes> aes_;
-    std::unique_ptr<crypto::HmacSha1> mac_;
+    std::unique_ptr<crypto::Hmac> mac_;
     std::uint8_t counter_[kBlock] = {};
     std::uint8_t keystream_[kKeystreamBlocks * kBlock] = {};
     std::size_t keystream_pos_ = sizeof keystream_;
@@ -225,12 +225,13 @@ SevenZipAesParams parse_7z_properties(const std::vector<std::uint8_t>& props)
     return params;
 }
 
-class SevenZipAesStream final : public io::InputStream {
+// AES-256-CBC decryption (7z and RAR). The data must be a whole number of 16-byte blocks.
+class CbcStream final : public io::InputStream {
 public:
-    SevenZipAesStream(io::StreamPtr upstream, const SevenZipAesParams& params, const Key256& key)
+    CbcStream(io::StreamPtr upstream, const Key256& key, const std::uint8_t* iv)
         : upstream_(std::move(upstream)), aes_(key.data(), key.size()), buffer_(kChunkBlocks * kBlock)
     {
-        std::memcpy(previous_, params.iv, kBlock);
+        std::memcpy(previous_, iv, kBlock);
     }
 
     std::size_t read(std::uint8_t* data, std::size_t size) override
@@ -255,7 +256,7 @@ private:
             return false;
         }
         if (got % kBlock != 0) {
-            throw Error(ErrorCode::Corrupt, "7z: encrypted data is not a whole number of AES blocks");
+            throw Error(ErrorCode::Corrupt, "encrypted data is not a whole number of AES blocks");
         }
         plain_.resize(got);
         aes_.decrypt(buffer_.data(), plain_.data(), got / kBlock);
@@ -358,7 +359,50 @@ std::vector<std::uint8_t> sevenzip_key_identity(const std::vector<std::uint8_t>&
 
 io::StreamPtr decrypt_7z_aes(io::StreamPtr upstream, const std::vector<std::uint8_t>& properties, const Key256& key)
 {
-    return std::make_unique<SevenZipAesStream>(std::move(upstream), parse_7z_properties(properties), key);
+    return std::make_unique<CbcStream>(std::move(upstream), key, parse_7z_properties(properties).iv);
+}
+
+Rar5Keys derive_rar5_keys(const std::string& password, const std::uint8_t* salt, unsigned log2_count)
+{
+    if (log2_count > 24) {
+        throw Error(ErrorCode::Unsupported, "rar: too many key derivation rounds");
+    }
+    // PBKDF2-HMAC-SHA256 with 2^n rounds gives the key; 16 and 32 more rounds give the hash key
+    // and the password check value.
+    const auto* pw = reinterpret_cast<const std::uint8_t*>(password.data());
+    const unsigned count = 1u << log2_count;
+    Rar5Keys keys;
+    crypto::pbkdf2(crypto::Hash::Sha256, pw, password.size(), salt, 16, count, keys.key.data(), keys.key.size());
+    crypto::pbkdf2(crypto::Hash::Sha256, pw, password.size(), salt, 16, count + 16, keys.hash_key.data(),
+                   keys.hash_key.size());
+    Key256 check{};
+    crypto::pbkdf2(crypto::Hash::Sha256, pw, password.size(), salt, 16, count + 32, check.data(), check.size());
+    for (std::size_t i = 0; i < check.size(); ++i) {
+        keys.check[i % keys.check.size()] ^= check[i];
+    }
+    crypto::wipe(check.data(), check.size());
+    return keys;
+}
+
+io::StreamPtr decrypt_aes256_cbc(io::StreamPtr upstream, const Key256& key, const std::uint8_t* iv)
+{
+    return std::make_unique<CbcStream>(std::move(upstream), key, iv);
+}
+
+void decrypt_aes256_cbc(const Key256& key, const std::uint8_t* iv, std::uint8_t* data, std::size_t size)
+{
+    if (size % kBlock != 0) {
+        throw Error(ErrorCode::Corrupt, "encrypted data is not a whole number of AES blocks");
+    }
+    crypto::Aes aes(key.data(), key.size());
+    std::vector<std::uint8_t> cipher(data, data + size);
+    aes.decrypt(cipher.data(), data, size / kBlock);
+    for (std::size_t b = 0; b < size; b += kBlock) {
+        const std::uint8_t* previous = b == 0 ? iv : cipher.data() + b - kBlock;
+        for (std::size_t i = 0; i < kBlock; ++i) {
+            data[b + i] ^= previous[i];
+        }
+    }
 }
 
 } // namespace digzip::codec

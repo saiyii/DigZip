@@ -28,7 +28,7 @@ void check_files(const fs::path& root, const std::vector<std::string>& names)
     for (const auto& [path, content] : expected) {
         if (std::find(names.begin(), names.end(), path) != names.end()) {
             CAPTURE(path);
-            CHECK(fixtures::read_file(root / fs::u8path(path)) == content);
+            CHECK(fixtures::read_file(root / fixtures::from_utf8(path)) == content);
         }
     }
 }

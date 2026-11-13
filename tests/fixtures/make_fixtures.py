@@ -458,6 +458,109 @@ def make_hostile_header_fixtures():
     # gzip: a file name field longer than any real one.
     write("hostile-gz-name.gz", b"\x1f\x8b\x08\x08\x00\x00\x00\x00\x00\xff" + b"n" * 20000 + b"\x00")
 
+# ---------------------------------------------------------------------------
+# RAR 5
+
+RAR = os.environ.get("DIGZIP_RAR", r"C:\Program Files\WinRAR\Rar.exe")
+
+
+def rar(archive, files, *switches, directories=()):
+    """Builds `archive` with RARLAB's rar from {name: bytes}. Keeps the committed file when rar is missing."""
+    if not os.path.exists(RAR):
+        print("rar not found, keeping the committed", archive)
+        return False
+    with tempfile.TemporaryDirectory() as tmp:
+        for name, data in files.items():
+            path = os.path.join(tmp, *name.split("/"))
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "wb") as f:
+                f.write(data)
+            os.utime(path, (MTIME, MTIME))
+        for name in directories:
+            os.makedirs(os.path.join(tmp, *name.split("/")), exist_ok=True)
+        target = os.path.join(HERE, archive)
+        stem = archive[: -len(".rar")]
+        for old in os.listdir(HERE):
+            if old == archive or (old.startswith(stem + ".part") and old.endswith(".rar")):
+                os.remove(os.path.join(HERE, old))
+        names = list(files.keys()) + list(directories)
+        subprocess.run([RAR, "a", "-idq", *switches, target, *names],
+                       cwd=tmp, check=True, stdout=subprocess.DEVNULL)
+    return True
+
+
+def rar_vint(n):
+    out = bytearray()
+    while True:
+        b = n & 0x7F
+        n >>= 7
+        out.append(b | (0x80 if n else 0))
+        if not n:
+            return bytes(out)
+
+
+def rar_block(kind, body, extra=b"", data=b"", flags=0):
+    flags |= (0x01 if extra else 0) | (0x02 if data else 0)
+    fields = rar_vint(kind) + rar_vint(flags)
+    if extra:
+        fields += rar_vint(len(extra))
+    if data:
+        fields += rar_vint(len(data))
+    fields += body + extra
+    size = rar_vint(len(fields))
+    return struct.pack("<I", zlib.crc32(size + fields)) + size + fields + data
+
+
+def rar_file(name, data, unix_mode=None, redirect=None):
+    """A stored file block; `redirect` = (type, target) adds a redirection (link) record."""
+    name = name.encode("utf-8")
+    host, attributes = (1, unix_mode) if unix_mode is not None else (0, 0x20)
+    body = (rar_vint(0x04) + rar_vint(len(data)) + rar_vint(attributes) + struct.pack("<I", zlib.crc32(data))
+            + rar_vint(0) + rar_vint(host) + rar_vint(len(name)) + name)
+    extra = b""
+    if redirect:
+        kind, target = redirect
+        record = rar_vint(5) + rar_vint(kind) + rar_vint(0) + rar_vint(len(target)) + target.encode("utf-8")
+        extra = rar_vint(len(record)) + record
+    return rar_block(2, body, extra, data)
+
+
+def build_rar(files):
+    return (b"Rar!\x1a\x07\x01\x00" + rar_block(1, rar_vint(0)) + b"".join(files) + rar_block(5, rar_vint(0)))
+
+
+def make_rar_fixtures():
+    big_text = word_text(120_000)
+    rar("basic.rar", FILES, directories=["data/empty_dir"])
+    rar("stored.rar", FILES, "-m0")
+    rar("best-solid.rar", FILES, "-m5", "-s")
+    rar("solid.rar", {f"part{i}.txt": word_text(4000, seed=i) for i in range(6)}, "-s", "-m3")
+    rar("large.rar", {"large.txt": big_text}, "-m3")
+    rar("small-dict.rar", {"large.txt": big_text, "random.bin": lcg_bytes(30_000)}, "-md128k", "-m3")
+    rar("x86.rar", {"x86.bin": x86_like(60_000)}, "-mce+", "-m3")
+    rar("delta.rar", {"samples.bin": bytes((i * 7 + (i // 4) * 3) & 0xFF for i in range(120_000))}, "-mc4d+", "-m3")
+    rar("blake2.rar", FILES, "-htb")
+    rar("encrypted.rar", {"secret.txt": b"top secret\n", "notes.txt": word_text(3000)}, "-psecret")
+    rar("encrypted-headers.rar", {"secret.txt": b"top secret\n", "notes.txt": word_text(3000)}, "-hpsecret")
+    rar("volumes.rar", {"random.bin": lcg_bytes(60_000)}, "-v20k", "-m0")
+
+    hello = FILES["hello.txt"]
+    write("crafted.rar", build_rar([rar_file("a.txt", b"first\n"), rar_file("b/c.txt", b"second\n")]))
+    write("evil-traversal.rar", build_rar([rar_file("../evil.txt", b"evil\n"), rar_file("safe.txt", b"safe\n")]))
+    write("evil-absolute.rar", build_rar([rar_file("/tmp/digzip-evil.txt", b"evil\n"),
+                                          rar_file("safe.txt", b"safe\n")]))
+    write("evil-symlink.rar", build_rar([rar_file("up", b"", unix_mode=0o120777, redirect=(1, "../../outside")),
+                                         rar_file("safe.txt", b"safe\n")]))
+    write("links.rar", build_rar([rar_file("hello.txt", hello),
+                                  rar_file("hello-hard", b"", redirect=(4, "hello.txt")),
+                                  rar_file("hello-link", b"", unix_mode=0o120777, redirect=(1, "hello.txt"))]))
+    basic = open(os.path.join(HERE, "basic.rar"), "rb").read()
+    write("truncated.rar", basic[: len(basic) // 2])
+    damaged = bytearray(basic)
+    damaged[len(basic) // 2] ^= 0xFF
+    write("corrupt-data.rar", bytes(damaged))
+    write("rar4-signature.rar", b"Rar!\x1a\x07\x00" + bytes(64))
+
 
 def main():
     basic = make_tar(basic_tree)
@@ -555,6 +658,7 @@ def main():
     make_zip_fixtures()
     make_7z_fixtures()
     make_hostile_header_fixtures()
+    make_rar_fixtures()
 
 
 if __name__ == "__main__":

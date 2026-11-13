@@ -61,10 +61,11 @@ BCRYPT_ALG_HANDLE sha256()
     return provider.get();
 }
 
-BCRYPT_ALG_HANDLE hmac_sha1()
+BCRYPT_ALG_HANDLE hmac(Hash hash)
 {
-    static const Provider provider(BCRYPT_SHA1_ALGORITHM, BCRYPT_ALG_HANDLE_HMAC_FLAG);
-    return provider.get();
+    static const Provider sha1(BCRYPT_SHA1_ALGORITHM, BCRYPT_ALG_HANDLE_HMAC_FLAG);
+    static const Provider sha256(BCRYPT_SHA256_ALGORITHM, BCRYPT_ALG_HANDLE_HMAC_FLAG);
+    return hash == Hash::Sha1 ? sha1.get() : sha256.get();
 }
 
 ULONG to_ulong(std::size_t size)
@@ -131,37 +132,39 @@ std::array<std::uint8_t, 32> Sha256::finish()
     return digest;
 }
 
-struct HmacSha1::Impl {
+struct Hmac::Impl {
     BCRYPT_HASH_HANDLE hash = nullptr;
+    std::size_t size = 0;
 };
 
-HmacSha1::HmacSha1(const std::uint8_t* key, std::size_t key_size) : impl_(std::make_unique<Impl>())
+Hmac::Hmac(Hash hash, const std::uint8_t* key, std::size_t key_size) : impl_(std::make_unique<Impl>())
 {
-    check(BCryptCreateHash(hmac_sha1(), &impl_->hash, nullptr, 0, const_cast<PUCHAR>(key), to_ulong(key_size), 0),
-          "creating an HMAC-SHA1");
+    impl_->size = hash == Hash::Sha1 ? 20 : 32;
+    check(BCryptCreateHash(hmac(hash), &impl_->hash, nullptr, 0, const_cast<PUCHAR>(key), to_ulong(key_size), 0),
+          "creating an HMAC");
 }
 
-HmacSha1::~HmacSha1()
+Hmac::~Hmac()
 {
     BCryptDestroyHash(impl_->hash);
 }
 
-void HmacSha1::update(const std::uint8_t* data, std::size_t size)
+void Hmac::update(const std::uint8_t* data, std::size_t size)
 {
-    check(BCryptHashData(impl_->hash, const_cast<PUCHAR>(data), to_ulong(size), 0), "HMAC-SHA1");
+    check(BCryptHashData(impl_->hash, const_cast<PUCHAR>(data), to_ulong(size), 0), "HMAC");
 }
 
-std::array<std::uint8_t, 20> HmacSha1::finish()
+std::vector<std::uint8_t> Hmac::finish()
 {
-    std::array<std::uint8_t, 20> mac{};
-    check(BCryptFinishHash(impl_->hash, mac.data(), to_ulong(mac.size()), 0), "HMAC-SHA1");
+    std::vector<std::uint8_t> mac(impl_->size);
+    check(BCryptFinishHash(impl_->hash, mac.data(), to_ulong(mac.size()), 0), "HMAC");
     return mac;
 }
 
-void pbkdf2_hmac_sha1(const std::uint8_t* password, std::size_t password_size, const std::uint8_t* salt,
-                      std::size_t salt_size, unsigned iterations, std::uint8_t* out, std::size_t out_size)
+void pbkdf2(Hash hash, const std::uint8_t* password, std::size_t password_size, const std::uint8_t* salt,
+            std::size_t salt_size, unsigned iterations, std::uint8_t* out, std::size_t out_size)
 {
-    check(BCryptDeriveKeyPBKDF2(hmac_sha1(), const_cast<PUCHAR>(password), to_ulong(password_size),
+    check(BCryptDeriveKeyPBKDF2(hmac(hash), const_cast<PUCHAR>(password), to_ulong(password_size),
                                 const_cast<PUCHAR>(salt), to_ulong(salt_size), iterations, out, to_ulong(out_size), 0),
           "PBKDF2");
 }

@@ -24,6 +24,7 @@ add_library(digzip_objects OBJECT
     src/text.cpp
     src/version.cpp
     src/codec/bcj2.cpp
+    src/codec/blake2sp.cpp
     src/codec/bzip2.cpp
     src/codec/deflate.cpp
     src/codec/encryption.cpp
@@ -80,6 +81,11 @@ target_link_libraries(digzip_objects PUBLIC
     LibLZMA::LibLZMA
     zstd::libzstd)
 digzip_set_warnings(digzip_objects)
+
+if(DIGZIP_WITH_RAR)
+    target_sources(digzip_objects PRIVATE src/codec/rar5_unpack.cpp src/format/rar.cpp)
+    target_compile_definitions(digzip_objects PRIVATE DIGZIP_WITH_RAR)
+endif()
 
 if(DIGZIP_CRYPTO_BACKEND STREQUAL "cng")
     target_sources(digzip_objects PRIVATE src/crypto/crypto_cng.cpp)

@@ -92,34 +92,37 @@ std::array<std::uint8_t, 32> Sha256::finish()
     return digest;
 }
 
-struct HmacSha1::Impl {
+struct Hmac::Impl {
     CCHmacContext ctx;
+    std::size_t size = 0;
 };
 
-HmacSha1::HmacSha1(const std::uint8_t* key, std::size_t key_size) : impl_(std::make_unique<Impl>())
+Hmac::Hmac(Hash hash, const std::uint8_t* key, std::size_t key_size) : impl_(std::make_unique<Impl>())
 {
-    CCHmacInit(&impl_->ctx, kCCHmacAlgSHA1, key, key_size);
+    impl_->size = hash == Hash::Sha1 ? 20 : 32;
+    CCHmacInit(&impl_->ctx, hash == Hash::Sha1 ? kCCHmacAlgSHA1 : kCCHmacAlgSHA256, key, key_size);
 }
 
-HmacSha1::~HmacSha1() = default;
+Hmac::~Hmac() = default;
 
-void HmacSha1::update(const std::uint8_t* data, std::size_t size)
+void Hmac::update(const std::uint8_t* data, std::size_t size)
 {
     CCHmacUpdate(&impl_->ctx, data, size);
 }
 
-std::array<std::uint8_t, 20> HmacSha1::finish()
+std::vector<std::uint8_t> Hmac::finish()
 {
-    std::array<std::uint8_t, 20> mac{};
+    std::vector<std::uint8_t> mac(impl_->size);
     CCHmacFinal(&impl_->ctx, mac.data());
     return mac;
 }
 
-void pbkdf2_hmac_sha1(const std::uint8_t* password, std::size_t password_size, const std::uint8_t* salt,
-                      std::size_t salt_size, unsigned iterations, std::uint8_t* out, std::size_t out_size)
+void pbkdf2(Hash hash, const std::uint8_t* password, std::size_t password_size, const std::uint8_t* salt,
+            std::size_t salt_size, unsigned iterations, std::uint8_t* out, std::size_t out_size)
 {
     check(CCKeyDerivationPBKDF(kCCPBKDF2, reinterpret_cast<const char*>(password), password_size, salt, salt_size,
-                               kCCPRFHmacAlgSHA1, iterations, out, out_size),
+                               hash == Hash::Sha1 ? kCCPRFHmacAlgSHA1 : kCCPRFHmacAlgSHA256, iterations, out,
+                               out_size),
           "PBKDF2");
 }
 

@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <string>
 #include <string_view>
 
@@ -21,6 +22,10 @@ std::string utf8_to_utf16le(std::string_view utf8);
 
 // Number of UTF-16 code units needed for valid UTF-8 text.
 std::size_t utf16_length(std::string_view utf8);
+
+// Paths to and from UTF-8, in C++17 and C++20 alike (where u8string() returns std::u8string).
+std::string path_to_utf8(const std::filesystem::path& path);
+std::filesystem::path path_from_utf8(std::string_view utf8);
 
 // Keeps valid UTF-8 as is, otherwise decodes `bytes` as Latin-1.
 std::string to_utf8_or_latin1(std::string_view bytes);

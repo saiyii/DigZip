@@ -9,16 +9,16 @@ future graphical interface are thin clients of it.
 
 ## Features
 
-- **Formats:** ZIP (Zip64, self-extracting), 7z, TAR (ustar, GNU, pax) plain or
+- **Formats:** ZIP (Zip64, self-extracting), 7z, RAR 5, TAR (ustar, GNU, pax) plain or
   compressed with gzip, bzip2, xz or zstd, and single `.gz`, `.bz2`, `.xz`, `.zst` files.
 - **Methods:** stored, deflate, Deflate64, bzip2, LZMA, LZMA2, PPMd, xz, zstd,
   BCJ / BCJ2 / ARM64 / Delta filters.
-- **Encryption:** ZipCrypto, WinZip AES-128/192/256, 7z AES-256 (including encrypted
-  file names). Several passwords can be tried in order.
+- **Encryption:** ZipCrypto, WinZip AES-128/192/256, 7z AES-256 and RAR 5 AES-256
+  (including encrypted file names). Several passwords can be tried in order.
 - **Safe by default:** no path ever leaves the destination, links are checked, special
   files are skipped, decompression bombs are stopped, existing files are kept.
 - **Scriptable:** JSON output and documented exit codes.
-- Container parsing and the rarer codecs (Deflate64, PPMd, BCJ2) are DigZip's own code;
+- Container parsing and the rarer codecs (Deflate64, PPMd, BCJ2, RAR 5) are DigZip's own code;
   zlib, bzip2, liblzma and zstd do the common decompression; encryption primitives come
   from the operating system.
 
@@ -100,6 +100,7 @@ The binaries land in `build/<preset>/bin/`.
 |---|---|---|
 | `DIGZIP_BUILD_CLI` | `ON` | Build the `digzip` executable. |
 | `DIGZIP_BUILD_TESTS` | `ON` | Build the test suite (pulls Catch2 through vcpkg). |
+| `DIGZIP_WITH_RAR` | `ON` | Read RAR 5 archives (DigZip's own decoder, no RARLAB code). |
 | `DIGZIP_BUILD_FUZZERS` | `OFF` | Build the fuzz targets (see below). |
 | `DIGZIP_LIBFUZZER` | `OFF` | Link the fuzz targets with libFuzzer (Clang). |
 | `DIGZIP_ENABLE_SANITIZERS` | `OFF` | AddressSanitizer, plus UndefinedBehaviorSanitizer outside MSVC. |

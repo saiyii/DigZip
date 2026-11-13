@@ -10,6 +10,7 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace digzip::crypto {
 
@@ -44,23 +45,25 @@ private:
     std::unique_ptr<Impl> impl_;
 };
 
-class HmacSha1 {
+enum class Hash { Sha1, Sha256 };
+
+class Hmac {
 public:
-    HmacSha1(const std::uint8_t* key, std::size_t key_size);
-    HmacSha1(const HmacSha1&) = delete;
-    HmacSha1& operator=(const HmacSha1&) = delete;
-    ~HmacSha1();
+    Hmac(Hash hash, const std::uint8_t* key, std::size_t key_size);
+    Hmac(const Hmac&) = delete;
+    Hmac& operator=(const Hmac&) = delete;
+    ~Hmac();
 
     void update(const std::uint8_t* data, std::size_t size);
-    std::array<std::uint8_t, 20> finish();
+    std::vector<std::uint8_t> finish(); // 20 bytes for SHA-1, 32 for SHA-256
 
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };
 
-void pbkdf2_hmac_sha1(const std::uint8_t* password, std::size_t password_size, const std::uint8_t* salt,
-                      std::size_t salt_size, unsigned iterations, std::uint8_t* out, std::size_t out_size);
+void pbkdf2(Hash hash, const std::uint8_t* password, std::size_t password_size, const std::uint8_t* salt,
+            std::size_t salt_size, unsigned iterations, std::uint8_t* out, std::size_t out_size);
 
 // Name and version of the backend, for version reports: {"cng", "system"}, {"openssl", "3.5.1"}...
 std::pair<std::string, std::string> backend();

@@ -8,6 +8,7 @@
 #include "codec/decoders.hpp"
 #include "codec/input_buffer.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstring>
 

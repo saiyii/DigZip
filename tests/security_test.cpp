@@ -26,7 +26,7 @@ struct Sandbox {
         std::vector<std::string> escaped;
         for (const auto& entry : fs::directory_iterator(dir.path())) {
             if (entry.path().filename() != "out") {
-                escaped.push_back(entry.path().filename().u8string());
+                escaped.push_back(fixtures::utf8(entry.path().filename()));
             }
         }
         return escaped;
@@ -166,6 +166,9 @@ TEST_CASE("an existing symbolic link in the destination is never followed")
     fs::create_directories(sandbox.out);
     fs::create_directories(sandbox.dir.path() / "elsewhere");
     fs::create_directory_symlink(sandbox.dir.path() / "elsewhere", sandbox.out / "docs");
+    if (!fs::is_symlink(sandbox.out / "docs")) {
+        SKIP("this system emulates directory links with copies (MSYS2, Cygwin)");
+    }
 
     const Report report = sandbox.run("basic.tar");
     CHECK(fixtures::has_issue(report, ErrorCode::Security, "docs/readme.md"));

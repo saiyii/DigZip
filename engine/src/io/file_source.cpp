@@ -1,5 +1,6 @@
 #include "io/stream.hpp"
 #include "io/system_error.hpp"
+#include "text.hpp"
 
 #include <digzip/error.hpp>
 
@@ -34,13 +35,13 @@ public:
         handle_ = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
                               FILE_ATTRIBUTE_NORMAL, nullptr);
         if (handle_ == INVALID_HANDLE_VALUE) {
-            throw_last_error(ErrorCode::Io, "cannot open " + path.u8string());
+            throw_last_error(ErrorCode::Io, "cannot open " + text::path_to_utf8(path));
         }
         LARGE_INTEGER size{};
         if (!GetFileSizeEx(handle_, &size)) {
             const DWORD error = GetLastError();
             CloseHandle(handle_);
-            throw_system_error(ErrorCode::Io, "cannot read the size of " + path.u8string(), static_cast<int>(error));
+            throw_system_error(ErrorCode::Io, "cannot read the size of " + text::path_to_utf8(path), static_cast<int>(error));
         }
         size_ = static_cast<std::uint64_t>(size.QuadPart);
     }
@@ -85,17 +86,17 @@ public:
     {
         fd_ = ::open(path.c_str(), O_RDONLY | O_CLOEXEC);
         if (fd_ < 0) {
-            throw_system_error(ErrorCode::Io, "cannot open " + path.u8string(), errno);
+            throw_system_error(ErrorCode::Io, "cannot open " + text::path_to_utf8(path), errno);
         }
         struct stat info {};
         if (::fstat(fd_, &info) != 0) {
             const int error = errno;
             ::close(fd_);
-            throw_system_error(ErrorCode::Io, "cannot read the size of " + path.u8string(), error);
+            throw_system_error(ErrorCode::Io, "cannot read the size of " + text::path_to_utf8(path), error);
         }
         if (!S_ISREG(info.st_mode)) {
             ::close(fd_);
-            throw Error(ErrorCode::Io, path.u8string() + " is not a regular file");
+            throw Error(ErrorCode::Io, text::path_to_utf8(path) + " is not a regular file");
         }
         size_ = static_cast<std::uint64_t>(info.st_size);
     }

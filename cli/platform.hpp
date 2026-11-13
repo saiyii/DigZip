@@ -1,10 +1,16 @@
 #pragma once
 
 #include <atomic>
+#include <filesystem>
 #include <optional>
 #include <string>
+#include <string_view>
 
 namespace cli {
+
+// Paths to and from UTF-8, in C++17 and C++20 alike.
+std::string path_to_utf8(const std::filesystem::path& path);
+std::filesystem::path path_from_utf8(std::string_view utf8);
 
 // Console in UTF-8 on Windows; nothing to do elsewhere.
 void setup_console();

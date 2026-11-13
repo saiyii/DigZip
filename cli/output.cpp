@@ -28,7 +28,7 @@ std::string format_time(const digzip::Timestamp& t)
     const std::int64_t day = doy - (153 * mp + 2) / 5 + 1;
     const std::int64_t month = mp < 10 ? mp + 3 : mp - 9;
     const std::int64_t year = yoe + era * 400 + (month <= 2);
-    char text[32];
+    char text[128];
     std::snprintf(text, sizeof text, "%04lld-%02lld-%02lld %02lld:%02lld:%02lld", static_cast<long long>(year),
                   static_cast<long long>(month), static_cast<long long>(day),
                   static_cast<long long>(seconds_of_day / 3600), static_cast<long long>(seconds_of_day / 60 % 60),
@@ -218,7 +218,7 @@ void print_list_json(std::ostream& out, const std::filesystem::path& archive, co
 {
     JsonWriter json(out);
     json.begin_object();
-    json.key("archive").value(archive.u8string());
+    json.key("archive").value(path_to_utf8(archive));
     json.key("format").value(digzip::to_string(info.format));
     json.key("entries").begin_array();
     for (const digzip::Entry& e : info.entries) {
@@ -259,7 +259,7 @@ void print_report_json(std::ostream& out, const std::filesystem::path& archive, 
 {
     JsonWriter json(out);
     json.begin_object();
-    json.key("archive").value(archive.u8string());
+    json.key("archive").value(path_to_utf8(archive));
     json.key("action").value(action);
     json.key("format").value(digzip::to_string(report.format));
     json.key("ok").value(report.ok());
@@ -287,7 +287,7 @@ void print_error_json(std::ostream& out, const std::filesystem::path& archive, c
 {
     JsonWriter json(out);
     json.begin_object();
-    json.key("archive").value(archive.u8string());
+    json.key("archive").value(path_to_utf8(archive));
     json.key("ok").value(false);
     json.key("exit_code").value(static_cast<std::int64_t>(exit_code(error.code())));
     json.key("error").begin_object();

@@ -50,7 +50,7 @@ std::uint64_t parse_size(const std::string& option, std::string text)
 // One password per line, UTF-8. Line endings and a byte order mark are removed.
 void read_password_file(const std::string& file, std::vector<std::string>& passwords)
 {
-    std::ifstream in(fs::u8path(file), std::ios::binary);
+    std::ifstream in(path_from_utf8(file), std::ios::binary);
     if (!in) {
         throw UsageError("--password-file: cannot read '" + file + "'");
     }
@@ -139,7 +139,7 @@ Command parse(const std::vector<std::string>& args)
 
         if (arg == "-o" || arg == "--output") {
             extract_only();
-            command.output = fs::u8path(next());
+            command.output = path_from_utf8(next());
         } else if (arg == "--include") {
             o.include.push_back(next());
         } else if (arg == "--exclude") {
@@ -192,7 +192,7 @@ Command parse(const std::vector<std::string>& args)
         } else if (!arg.empty() && arg[0] == '-' && arg != "-") {
             throw UsageError("unknown option '" + arg + "'");
         } else if (!have_archive) {
-            command.archive = fs::u8path(arg);
+            command.archive = path_from_utf8(arg);
             have_archive = true;
         } else {
             throw UsageError("unexpected argument '" + arg + "' (one archive at a time)");

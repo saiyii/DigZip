@@ -16,7 +16,7 @@ std::vector<std::string> files_of(const fs::path& root)
 {
     std::vector<std::string> out;
     for (const auto& path : fixtures::tree(root)) {
-        if (fs::is_regular_file(root / fs::u8path(path))) {
+        if (fs::is_regular_file(root / fixtures::from_utf8(path))) {
             out.push_back(path);
         }
     }

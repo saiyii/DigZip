@@ -31,4 +31,17 @@ std::vector<std::uint8_t> sevenzip_key_identity(const std::vector<std::uint8_t>&
 // 7z AES-256-CBC decryption with a key from derive_7z_key().
 io::StreamPtr decrypt_7z_aes(io::StreamPtr upstream, const std::vector<std::uint8_t>& properties, const Key256& key);
 
+// RAR 5: AES-256 key, key for the checksums of encrypted files (HMAC-SHA256), and the 8-byte
+// password check value, from the password (UTF-8), a 16-byte salt and 2^log2_count rounds.
+struct Rar5Keys {
+    Key256 key{};
+    Key256 hash_key{};
+    std::array<std::uint8_t, 8> check{};
+};
+Rar5Keys derive_rar5_keys(const std::string& password, const std::uint8_t* salt, unsigned log2_count);
+
+// AES-256-CBC decryption with a 16-byte IV, as a stream or in place.
+io::StreamPtr decrypt_aes256_cbc(io::StreamPtr upstream, const Key256& key, const std::uint8_t* iv);
+void decrypt_aes256_cbc(const Key256& key, const std::uint8_t* iv, std::uint8_t* data, std::size_t size);
+
 } // namespace digzip::codec

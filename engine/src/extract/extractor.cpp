@@ -2,6 +2,7 @@
 #include "extract/output_file.hpp"
 #include "filter.hpp"
 #include "io/system_error.hpp"
+#include "text.hpp"
 
 #include <algorithm>
 #include <random>
@@ -33,7 +34,7 @@ void warn(Report& report, ErrorCode code, const std::string& path, const std::st
 
 fs::path native_link_target(const std::string& target)
 {
-    fs::path path = fs::u8path(target);
+    fs::path path = text::path_from_utf8(target);
     path.make_preferred();
     return path;
 }
@@ -41,11 +42,11 @@ fs::path native_link_target(const std::string& target)
 // "name.ext" -> "name (1).ext", "name (2).ext"... first one that does not exist.
 fs::path free_name(const fs::path& target)
 {
-    const std::string stem = target.stem().u8string();
-    const std::string extension = target.extension().u8string();
+    const std::string stem = text::path_to_utf8(target.stem());
+    const std::string extension = text::path_to_utf8(target.extension());
     for (int n = 1; n <= kMaxRenameAttempts; ++n) {
         const fs::path candidate =
-            target.parent_path() / fs::u8path(stem + " (" + std::to_string(n) + ")" + extension);
+            target.parent_path() / text::path_from_utf8(stem + " (" + std::to_string(n) + ")" + extension);
         std::error_code ec;
         if (fs::symlink_status(candidate, ec).type() == fs::file_type::not_found) {
             return candidate;
@@ -64,7 +65,7 @@ Extractor::Extractor(const fs::path& destination, const ExtractOptions& options)
     fs::create_directories(root_, ec);
     if (!fs::is_directory(root_)) {
         const std::string reason = ec ? io::error_message(ec) : "it is not a directory";
-        throw Error(ErrorCode::InvalidArgument, "cannot extract into " + destination.u8string() + ": " + reason);
+        throw Error(ErrorCode::InvalidArgument, "cannot extract into " + text::path_to_utf8(destination) + ": " + reason);
     }
     temp_counter_ = std::random_device{}();
 }
@@ -87,7 +88,7 @@ fs::path Extractor::path_of(const std::vector<std::string>& components, std::siz
 {
     fs::path path = root_;
     for (std::size_t i = 0; i < count; ++i) {
-        path /= fs::u8path(components[i]);
+        path /= text::path_from_utf8(components[i]);
     }
     return path;
 }
@@ -97,7 +98,7 @@ void Extractor::make_directories(const std::vector<std::string>& components, std
     fs::path path = root_;
     std::string key;
     for (std::size_t i = 0; i < count; ++i) {
-        path /= fs::u8path(components[i]);
+        path /= text::path_from_utf8(components[i]);
         key += '/';
         key += components[i];
         if (directories_.count(key) != 0) {
@@ -148,7 +149,7 @@ std::optional<fs::path> Extractor::claim(const fs::path& target, const std::stri
     case Overwrite::Rename: {
         const fs::path renamed = free_name(target);
         warn(report, ErrorCode::AlreadyExists, entry_path,
-             "already exists, extracted as '" + renamed.filename().u8string() + "'");
+             "already exists, extracted as '" + text::path_to_utf8(renamed.filename()) + "'");
         return renamed;
     }
     }

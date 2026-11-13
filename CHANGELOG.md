@@ -21,13 +21,19 @@ Release notes: [docs/releases/0.1.0.md](docs/releases/0.1.0.md).
   RISC-V, BCJ2 and Delta filters.
 - TAR: ustar, GNU long names, pax records, base-256 numbers; plain or compressed with gzip,
   bzip2, xz or zstd.
+- RAR 5 (`DIGZIP_WITH_RAR`, on by default): stored and compressed files, solid archives, small and
+  large dictionaries, Delta and x86 filters (the ARM filter is implemented but not covered by a test
+  archive yet: RAR only applies it on its own), CRC-32 and BLAKE2sp checksums, symbolic and hard
+  links, Unix modes, precise times. No RARLAB code is used.
 - Single compressed files: `.gz` (all members), `.bz2`, `.xz`, `.zst`, concatenated streams.
-- Container parsing, the gzip framing, Deflate64, PPMd and BCJ2 are DigZip's own code;
+- Container parsing, the gzip framing, Deflate64, PPMd, BCJ2, the RAR 5 decoder and BLAKE2sp are
+  DigZip's own code;
   zlib, bzip2, liblzma and zstd do the common decompression.
 
 ### Encryption
 - ZipCrypto, WinZip AES-128/192/256 (AE-1 and AE-2, authentication code checked),
-  7z AES-256 including encrypted file names.
+  7z AES-256 and RAR 5 AES-256, both including encrypted file names; RAR checksums in their
+  HMAC form are verified.
 - Several passwords, tried in order; they never appear in messages and derived keys are wiped.
 - Cryptographic primitives from the system: CNG on Windows, CommonCrypto on macOS,
   OpenSSL 3 elsewhere (`DIGZIP_CRYPTO_BACKEND`).
@@ -59,3 +65,5 @@ Release notes: [docs/releases/0.1.0.md](docs/releases/0.1.0.md).
 - Catch2 suite with valid, hostile and corrupt fixtures, CLI tests run as a subprocess.
 - AddressSanitizer + UndefinedBehaviorSanitizer builds, fuzz targets (libFuzzer or a
   replay-and-mutate driver), CI on Windows, macOS and Linux.
+- Builds in C++17 and C++20 mode, with MSVC, Clang and GCC; checked on a POSIX system with
+  GCC 16 and OpenSSL 4.

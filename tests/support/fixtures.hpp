@@ -15,6 +15,22 @@ namespace fixtures {
 
 namespace fs = std::filesystem;
 
+// Paths to and from UTF-8, in C++17 and C++20 alike.
+inline std::string utf8(const fs::path& path)
+{
+    const auto text = path.u8string();
+    return std::string(text.begin(), text.end());
+}
+
+inline fs::path from_utf8(const std::string& text)
+{
+#ifdef __cpp_char8_t
+    return fs::path(std::u8string(text.begin(), text.end()));
+#else
+    return fs::u8path(text);
+#endif
+}
+
 inline fs::path path(const std::string& name)
 {
     return fs::path(DIGZIP_FIXTURES_DIR) / name;
@@ -113,7 +129,7 @@ public:
     }
 
     const fs::path& path() const { return path_; }
-    fs::path operator/(const std::string& relative) const { return path_ / fs::u8path(relative); }
+    fs::path operator/(const std::string& relative) const { return path_ / from_utf8(relative); }
 
 private:
     fs::path path_;
@@ -131,7 +147,8 @@ inline std::vector<std::string> tree(const fs::path& root)
 {
     std::vector<std::string> out;
     for (const auto& entry : fs::recursive_directory_iterator(root)) {
-        out.push_back(fs::relative(entry.path(), root).generic_u8string());
+        const auto generic = fs::relative(entry.path(), root).generic_u8string();
+        out.emplace_back(generic.begin(), generic.end());
     }
     std::sort(out.begin(), out.end());
     return out;

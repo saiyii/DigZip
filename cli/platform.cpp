@@ -27,6 +27,21 @@ extern "C" void on_interrupt(int signal)
 
 } // namespace
 
+std::string path_to_utf8(const std::filesystem::path& path)
+{
+    const auto utf8 = path.u8string();
+    return std::string(utf8.begin(), utf8.end());
+}
+
+std::filesystem::path path_from_utf8(std::string_view utf8)
+{
+#ifdef __cpp_char8_t
+    return std::filesystem::path(std::u8string(utf8.begin(), utf8.end()));
+#else
+    return std::filesystem::u8path(utf8.begin(), utf8.end());
+#endif
+}
+
 void setup_console()
 {
 #ifdef _WIN32

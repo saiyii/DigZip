@@ -1,5 +1,6 @@
 #include "codec/decoders.hpp"
 #include "format/reader.hpp"
+#include "text.hpp"
 
 #include <digzip/error.hpp>
 
@@ -93,7 +94,7 @@ std::string raw_entry_name(const std::filesystem::path& archive, const std::stri
             return base;
         }
     }
-    const std::string file = archive.filename().u8string();
+    const std::string file = text::path_to_utf8(archive.filename());
     const std::string lowered = lower(file);
     for (const char* ext : {".gz", ".gzip", ".bz2", ".bz", ".xz", ".zst", ".zstd"}) {
         const std::size_t n = std::strlen(ext);
@@ -108,7 +109,7 @@ std::string raw_entry_name(const std::filesystem::path& archive, const std::stri
 {
     switch (container) {
     case Container::Rar:
-        throw Error(ErrorCode::Unsupported, "RAR archives need the optional RAR module, which is not part of this build");
+        throw Error(ErrorCode::Unsupported, "RAR support is not part of this build (DIGZIP_WITH_RAR=OFF)");
     default:
         throw Error(ErrorCode::Unsupported, "unrecognized archive format");
     }
@@ -145,6 +146,10 @@ OpenedArchive open_archive(io::SourcePtr source, const std::filesystem::path& pa
             return {sniffed, make_zip_reader(source, monitor)};
         case Container::SevenZip:
             return {sniffed, make_sevenzip_reader(source, monitor)};
+#ifdef DIGZIP_WITH_RAR
+        case Container::Rar:
+            return {sniffed, make_rar_reader(source, monitor)};
+#endif
         default:
             unsupported_container(sniffed.container);
         }

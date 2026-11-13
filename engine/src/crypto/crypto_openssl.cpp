@@ -119,9 +119,10 @@ std::array<std::uint8_t, 32> Sha256::finish()
     return digest;
 }
 
-struct HmacSha1::Impl {
+struct Hmac::Impl {
     EVP_MAC* mac = nullptr;
     EVP_MAC_CTX* ctx = nullptr;
+    std::size_t size = 0;
 
     ~Impl()
     {
@@ -130,36 +131,40 @@ struct HmacSha1::Impl {
     }
 };
 
-HmacSha1::HmacSha1(const std::uint8_t* key, std::size_t key_size) : impl_(std::make_unique<Impl>())
+Hmac::Hmac(Hash hash, const std::uint8_t* key, std::size_t key_size) : impl_(std::make_unique<Impl>())
 {
-    impl_->mac = require(EVP_MAC_fetch(nullptr, "HMAC", nullptr), "creating an HMAC-SHA1");
-    impl_->ctx = require(EVP_MAC_CTX_new(impl_->mac), "creating an HMAC-SHA1");
-    char digest[] = "SHA1";
-    const OSSL_PARAM params[] = {OSSL_PARAM_construct_utf8_string(OSSL_MAC_PARAM_DIGEST, digest, 0),
-                                 OSSL_PARAM_construct_end()};
-    check(EVP_MAC_init(impl_->ctx, key, key_size, params), "creating an HMAC-SHA1");
+    impl_->size = hash == Hash::Sha1 ? 20 : 32;
+    impl_->mac = require(EVP_MAC_fetch(nullptr, "HMAC", nullptr), "creating an HMAC");
+    impl_->ctx = require(EVP_MAC_CTX_new(impl_->mac), "creating an HMAC");
+    char sha1[] = "SHA1";
+    char sha256[] = "SHA256";
+    const OSSL_PARAM params[] = {
+        OSSL_PARAM_construct_utf8_string(OSSL_MAC_PARAM_DIGEST, hash == Hash::Sha1 ? sha1 : sha256, 0),
+        OSSL_PARAM_construct_end()};
+    check(EVP_MAC_init(impl_->ctx, key, key_size, params), "creating an HMAC");
 }
 
-HmacSha1::~HmacSha1() = default;
+Hmac::~Hmac() = default;
 
-void HmacSha1::update(const std::uint8_t* data, std::size_t size)
+void Hmac::update(const std::uint8_t* data, std::size_t size)
 {
-    check(EVP_MAC_update(impl_->ctx, data, size), "HMAC-SHA1");
+    check(EVP_MAC_update(impl_->ctx, data, size), "HMAC");
 }
 
-std::array<std::uint8_t, 20> HmacSha1::finish()
+std::vector<std::uint8_t> Hmac::finish()
 {
-    std::array<std::uint8_t, 20> mac{};
+    std::vector<std::uint8_t> mac(impl_->size);
     std::size_t size = 0;
-    check(EVP_MAC_final(impl_->ctx, mac.data(), &size, mac.size()), "HMAC-SHA1");
+    check(EVP_MAC_final(impl_->ctx, mac.data(), &size, mac.size()), "HMAC");
     return mac;
 }
 
-void pbkdf2_hmac_sha1(const std::uint8_t* password, std::size_t password_size, const std::uint8_t* salt,
-                      std::size_t salt_size, unsigned iterations, std::uint8_t* out, std::size_t out_size)
+void pbkdf2(Hash hash, const std::uint8_t* password, std::size_t password_size, const std::uint8_t* salt,
+            std::size_t salt_size, unsigned iterations, std::uint8_t* out, std::size_t out_size)
 {
     check(PKCS5_PBKDF2_HMAC(reinterpret_cast<const char*>(password), to_int(password_size), salt, to_int(salt_size),
-                            static_cast<int>(iterations), EVP_sha1(), to_int(out_size), out),
+                            static_cast<int>(iterations), hash == Hash::Sha1 ? EVP_sha1() : EVP_sha256(),
+                            to_int(out_size), out),
           "PBKDF2");
 }
 

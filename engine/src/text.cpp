@@ -170,6 +170,21 @@ std::size_t utf16_length(std::string_view utf8)
     return units;
 }
 
+std::string path_to_utf8(const std::filesystem::path& path)
+{
+    const auto utf8 = path.u8string();
+    return std::string(utf8.begin(), utf8.end());
+}
+
+std::filesystem::path path_from_utf8(std::string_view utf8)
+{
+#ifdef __cpp_char8_t
+    return std::filesystem::path(std::u8string(utf8.begin(), utf8.end()));
+#else
+    return std::filesystem::u8path(utf8.begin(), utf8.end());
+#endif
+}
+
 std::string to_utf8_or_latin1(std::string_view bytes)
 {
     return is_valid_utf8(bytes) ? std::string(bytes) : latin1_to_utf8(bytes);

@@ -71,17 +71,29 @@ TEST_CASE("system cryptography matches the published test vectors")
     // RFC 2202, test case 2.
     const std::string key = "Jefe";
     const std::string data = "what do ya want for nothing?";
-    crypto::HmacSha1 hmac(bytes_of(key), key.size());
+    crypto::Hmac hmac(crypto::Hash::Sha1, bytes_of(key), key.size());
     hmac.update(bytes_of(data), data.size());
     const auto mac = hmac.finish();
     CHECK(hex(mac.data(), mac.size()) == "effcdf6ae5eb2fa2d27416d5f184df9c259a7c79");
 
-    // RFC 6070.
+    // RFC 4231, test case 2.
+    crypto::Hmac hmac256(crypto::Hash::Sha256, bytes_of(key), key.size());
+    hmac256.update(bytes_of(data), data.size());
+    const auto mac256 = hmac256.finish();
+    CHECK(hex(mac256.data(), mac256.size()) ==
+          "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843");
+
+    // RFC 6070 (PBKDF2-HMAC-SHA1) and RFC 7914 section 11 (PBKDF2-HMAC-SHA256).
     std::uint8_t derived[20];
-    crypto::pbkdf2_hmac_sha1(bytes_of("password"), 8, bytes_of("salt"), 4, 2, derived, sizeof derived);
+    crypto::pbkdf2(crypto::Hash::Sha1, bytes_of("password"), 8, bytes_of("salt"), 4, 2, derived, sizeof derived);
     CHECK(hex(derived, sizeof derived) == "ea6c014dc72d6f8ccd1ed92ace1d41f0d8de8957");
-    crypto::pbkdf2_hmac_sha1(bytes_of("password"), 8, bytes_of("salt"), 4, 4096, derived, sizeof derived);
+    crypto::pbkdf2(crypto::Hash::Sha1, bytes_of("password"), 8, bytes_of("salt"), 4, 4096, derived, sizeof derived);
     CHECK(hex(derived, sizeof derived) == "4b007901b765489abead49d926f721d065a429c1");
+    std::uint8_t derived256[64];
+    crypto::pbkdf2(crypto::Hash::Sha256, bytes_of("passwd"), 6, bytes_of("salt"), 4, 1, derived256, sizeof derived256);
+    CHECK(hex(derived256, sizeof derived256) ==
+          "55ac046e56e3089fec1691c22544b605f94185216dde0465e68b9d57c20dacbc"
+          "49ca9cccf179b645991664b39d77ef317c71b845b1e30bd509112041d3a19783");
 }
 
 TEST_CASE("encrypted archives extract with the right password")

@@ -3,6 +3,7 @@
 
 #include "codec/decoders.hpp"
 #include "codec/encryption.hpp"
+#include "codec/rar5.hpp"
 #include "io/stream.hpp"
 
 #include <digzip/error.hpp>
@@ -22,6 +23,15 @@ StreamPtr stream_of(const std::uint8_t* data, std::size_t size)
     auto source = digzip::io::memory_source(std::vector<std::uint8_t>(data, data + size));
     return std::make_unique<digzip::io::SourceStream>(source, 0, size);
 }
+
+class RarStream final : public digzip::io::InputStream {
+public:
+    explicit RarStream(digzip::codec::Rar5Unpacker& unpacker) : unpacker_(unpacker) {}
+    std::size_t read(std::uint8_t* data, std::size_t size) override { return unpacker_.read(data, size); }
+
+private:
+    digzip::codec::Rar5Unpacker& unpacker_;
+};
 
 void drain(digzip::io::InputStream& stream)
 {
@@ -45,7 +55,8 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size
     size -= 1;
     try {
         StreamPtr decoded;
-        switch (selector % 6) {
+        codec::Rar5Unpacker rar;
+        switch (selector % 7) {
         case 0:
             decoded = codec::decode_inflate(stream_of(data, size), true);
             break;
@@ -79,6 +90,10 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size
             decoded = codec::decode_bcj2(std::move(inputs), kMaxOutput);
             break;
         }
+        case 5:
+            rar.start(stream_of(data, size), kMaxOutput, 1u << 17, false);
+            decoded = std::make_unique<RarStream>(rar);
+            break;
         default:
             decoded = codec::decrypt_zipcrypto(stream_of(data, size), "secret", data[11 < size ? 11 : 0]);
             break;
