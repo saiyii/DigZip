@@ -135,3 +135,9 @@ TEST_CASE("headers announcing absurd counts or sizes are refused without allocat
     const Report report = test(fixtures::path(name));
     CHECK(fixtures::has_issue(report, code));
 }
+
+TEST_CASE("an empty file is reported as an error")
+{
+    CHECK_FALSE(test(fixtures::path("empty.bin")).ok());
+    CHECK_THROWS_AS(list(fixtures::path("empty.bin")), Error);
+}

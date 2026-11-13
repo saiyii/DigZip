@@ -22,7 +22,9 @@ public:
         if (offset > bytes_.size() || size > bytes_.size() - offset) {
             throw Error(ErrorCode::Corrupt, "unexpected end of archive");
         }
-        std::memcpy(data, bytes_.data() + offset, size);
+        if (size != 0) { // memcpy with a null pointer is undefined, even for zero bytes
+            std::memcpy(data, bytes_.data() + offset, size);
+        }
     }
 
 private:

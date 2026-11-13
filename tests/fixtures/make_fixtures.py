@@ -654,6 +654,7 @@ def main():
     write("truncated.zst", zstd.compress(lcg_bytes(5000))[:-20])
     write("truncated.tar", basic[: len(basic) // 2])
     write("garbage.bin", lcg_bytes(4096, seed=7))
+    write("empty.bin", b"")
 
     make_zip_fixtures()
     make_7z_fixtures()
