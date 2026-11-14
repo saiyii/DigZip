@@ -45,6 +45,14 @@ the destination folder and what to do with existing files, then *Extract* or *Te
 shows in the status bar, *Cancel* (or Esc) stops cleanly, a password is asked when needed,
 and any problem is listed under the content.
 
+## Languages
+
+DigZip speaks English and French. The graphical interface and the command-line tool follow the
+language of the system; *Options > Language* in the window, or the `DIGZIP_LANG` environment
+variable (`en` or `fr`) for both, choose another one. The JSON output stays in English, so that
+scripts work everywhere. The engine reports problems in English: in French, a translated
+description comes first, followed by the engine's message.
+
 ## Command line
 
 ```sh

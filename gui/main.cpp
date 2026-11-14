@@ -8,6 +8,7 @@
 int main(int argc, char* argv[])
 {
     QApplication app(argc, argv);
+    QApplication::setOrganizationName(QStringLiteral("DigZip"));
     QApplication::setApplicationName(QStringLiteral("DigZip"));
     QApplication::setApplicationVersion(QString::fromStdString(digzip::version_info().program));
     digzip::gui::install_translations(app);

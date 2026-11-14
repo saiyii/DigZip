@@ -31,9 +31,12 @@ std::string text_of(const fs::path& file)
     return {bytes.begin(), bytes.end()};
 }
 
-// Runs the digzip executable with `args` (already quoted where needed).
-Result run(const std::string& args)
+void set_env(const char* name, const std::string& value);
+
+// Runs the digzip executable with `args` (already quoted where needed), in `language`.
+Result run(const std::string& args, const std::string& language = "en")
 {
+    set_env("DIGZIP_LANG", language);
     static TempDir dir;
     const fs::path out = dir / "stdout.txt";
     const fs::path err = dir / "stderr.txt";
@@ -87,6 +90,34 @@ TEST_CASE("cli: version and help")
 
     const Result nothing = run("");
     CHECK(nothing.exit_code == 0);
+}
+
+TEST_CASE("cli: messages in French")
+{
+    const Result help = run("--help", "fr");
+    CHECK(contains(help.out, "Codes de retour :"));
+
+    const Result usage = run("frobnicate x.zip", "fr");
+    CHECK(usage.exit_code == 2);
+    CHECK(contains(usage.err, "commande inconnue « frobnicate »"));
+    CHECK(contains(usage.err, "Essayez « digzip --help »."));
+
+    const Result listing = run("list " + fixture("basic.tar"), "fr");
+    CHECK(listing.exit_code == 0);
+    CHECK(contains(listing.out, "Modifié (UTC)"));
+    CHECK(contains(listing.out, "tar : 6 fichiers, 1 dossier, 2 autres éléments"));
+
+    TempDir out;
+    const std::string args = "extract " + fixture("basic.7z") + " -o " + quote((out / "x").string());
+    CHECK(run(args, "fr").exit_code == 0);
+    const Result again = run(args, "fr");
+    CHECK(again.exit_code == 1);
+    CHECK(contains(again.out, "Extrait : 0 fichier, "));
+    CHECK(contains(again.err, "avertissement : hello.txt : existe déjà (already exists, skipped)"));
+
+    // Scripts get the same JSON in every language.
+    const Result json = run("list --json " + fixture("basic.tar"), "fr");
+    CHECK(json.out == run("list --json " + fixture("basic.tar"), "en").out);
 }
 
 TEST_CASE("cli: usage errors exit with 2")

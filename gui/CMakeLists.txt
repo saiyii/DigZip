@@ -1,5 +1,5 @@
 find_package(Qt6 6.7 REQUIRED COMPONENTS Widgets LinguistTools)
-qt_standard_project_setup(I18N_SOURCE_LANGUAGE en)
+qt_standard_project_setup(I18N_SOURCE_LANGUAGE en I18N_TRANSLATED_LANGUAGES fr)
 
 # Everything but main(), shared with the tests.
 add_library(digzip_gui_lib STATIC
@@ -13,9 +13,11 @@ digzip_set_warnings(digzip_gui_lib)
 
 qt_add_resources(digzip_gui_lib icons PREFIX /icons BASE icons FILES icons/extract.svg)
 
-# The English plural forms ("1 file", "2 files"), embedded under :/i18n.
+# The French translation and the English plural forms ("1 file", "2 files"), embedded under :/i18n.
 qt_add_translations(digzip_gui_lib
     SOURCE_TARGETS digzip_gui_lib
+    TS_FILE_BASE digzip
+    TS_FILE_DIR translations
     PLURALS_TS_FILE translations/digzip_en.ts)
 
 qt_add_executable(digzip-gui WIN32 MACOSX_BUNDLE main.cpp)

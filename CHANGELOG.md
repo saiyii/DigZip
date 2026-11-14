@@ -6,6 +6,15 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- French translation of the graphical interface and of the command-line tool, chosen from the
+  system language; *Options > Language* in the window and `DIGZIP_LANG` (`en`, `fr`) choose
+  another one. Qt's own dialogs are translated too. JSON output stays in English.
+
+### Changed
+- The command-line summary says "N entries skipped" instead of "N skipped".
+- The help lists RAR 5 among the formats.
+
 ## [0.2.0] - 2026-11-13
 
 A graphical interface, and ready-to-run downloads.

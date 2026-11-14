@@ -11,8 +11,24 @@
 
 namespace digzip::gui {
 
-// Installs the embedded translations into `app`.
-void install_translations(QCoreApplication& app);
+// Language of the interface, "en" or "fr": DIGZIP_LANG when set (`forced`), otherwise the
+// language chosen in the Language menu (`saved`), otherwise the first supported language of the
+// system's list.
+QString ui_language(const QString& forced, const QString& saved, const QStringList& system_languages);
+
+// Chooses the language and installs the matching translations, DigZip's and Qt's own, into `app`.
+// Returns the language.
+QString install_translations(QCoreApplication& app);
+
+// Where the Language menu keeps its choice: "" (the system's), "en" or "fr".
+QString saved_language();
+void save_language(const QString& language);
+
+// What a problem of this kind means, in the interface language.
+QString describe(ErrorCode code);
+
+// An engine message (in English) as shown in the interface language.
+QString engine_message(ErrorCode code, const QString& message);
 
 // Folder proposed for extraction: next to the archive, named after it without its archive
 // extensions ("photos.tar.gz" -> "photos").

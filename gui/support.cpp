@@ -5,7 +5,9 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
+#include <QLibraryInfo>
 #include <QLocale>
+#include <QSettings>
 #include <QTranslator>
 
 #include <algorithm>
@@ -25,17 +27,94 @@ bool is_password_issue(const Issue& issue)
 
 } // namespace
 
-void install_translations(QCoreApplication& app)
+QString ui_language(const QString& forced, const QString& saved, const QStringList& system_languages)
 {
-    // English first, for its plural forms; a translation for the user's language takes precedence.
-    auto* english = new QTranslator(&app);
-    if (english->load(QStringLiteral(":/i18n/digzip_en.qm"))) {
-        QCoreApplication::installTranslator(english);
+    const auto supported = [](const QString& code) -> QString {
+        const QString language = code.left(2).toLower();
+        return language == QLatin1String("fr") || language == QLatin1String("en") ? language : QString();
+    };
+    for (const QString& choice : {forced, saved}) {
+        if (const QString language = supported(choice); !language.isEmpty()) {
+            return language;
+        }
     }
-    auto* local = new QTranslator(&app);
-    if (local->load(QLocale(), QStringLiteral("digzip"), QStringLiteral("_"), QStringLiteral(":/i18n"))) {
-        QCoreApplication::installTranslator(local);
+    for (const QString& code : system_languages) {
+        if (const QString language = supported(code); !language.isEmpty()) {
+            return language;
+        }
     }
+    return QStringLiteral("en");
+}
+
+QString saved_language()
+{
+    return QSettings().value(QStringLiteral("language")).toString();
+}
+
+void save_language(const QString& language)
+{
+    QSettings().setValue(QStringLiteral("language"), language);
+}
+
+QString install_translations(QCoreApplication& app)
+{
+    const QString language = ui_language(qEnvironmentVariable("DIGZIP_LANG"), saved_language(),
+                                         QLocale::system().uiLanguages());
+    // Sizes and dates follow the system, unless the interface uses another language.
+    if (QLocale::system().name().left(2) != language) {
+        QLocale::setDefault(QLocale(language));
+    }
+
+    // Installs the first of `files` found in one of `directories`.
+    const auto install = [&app](const QStringList& files, const QStringList& directories) {
+        auto* translator = new QTranslator(&app);
+        for (const QString& directory : directories) {
+            for (const QString& file : files) {
+                if (translator->load(file, directory)) {
+                    QCoreApplication::installTranslator(translator);
+                    return;
+                }
+            }
+        }
+        delete translator;
+    };
+    // Qt's own texts (standard buttons and dialogs): qt_xx.qm as windeployqt writes it, or qtbase_xx.qm.
+    const QString here = QCoreApplication::applicationDirPath();
+    install({QStringLiteral("qt_") + language, QStringLiteral("qtbase_") + language},
+            {here + QStringLiteral("/translations"), here + QStringLiteral("/../Resources/translations"),
+             QLibraryInfo::path(QLibraryInfo::TranslationsPath)});
+    // English plural forms first; the French translation, installed last, takes precedence.
+    install({QStringLiteral("digzip_en")}, {QStringLiteral(":/i18n")});
+    if (language != QLatin1String("en")) {
+        install({QStringLiteral("digzip_") + language}, {QStringLiteral(":/i18n")});
+    }
+    return language;
+}
+
+QString describe(ErrorCode code)
+{
+    switch (code) {
+    case ErrorCode::Io: return Text::tr("input/output error");
+    case ErrorCode::Corrupt: return Text::tr("damaged data");
+    case ErrorCode::Unsupported: return Text::tr("not supported");
+    case ErrorCode::Checksum: return Text::tr("checksum mismatch");
+    case ErrorCode::Security: return Text::tr("refused for safety");
+    case ErrorCode::LimitExceeded: return Text::tr("safety limit reached");
+    case ErrorCode::InvalidName: return Text::tr("invalid name");
+    case ErrorCode::AlreadyExists: return Text::tr("already exists");
+    case ErrorCode::InvalidArgument: return Text::tr("invalid option");
+    case ErrorCode::Cancelled: return Text::tr("cancelled");
+    case ErrorCode::PasswordRequired: return Text::tr("password required");
+    case ErrorCode::WrongPassword: return Text::tr("wrong password");
+    }
+    return Text::tr("input/output error");
+}
+
+QString engine_message(ErrorCode code, const QString& message)
+{
+    // The engine writes in English: a translation may put what the problem means first.
+    const QString pattern = Text::tr("%1", "an engine message in English; %2 is what it means, translated");
+    return pattern.contains(QLatin1String("%2")) ? pattern.arg(message, describe(code)) : pattern.arg(message);
 }
 
 QString default_destination(const QString& archive)
@@ -122,9 +201,9 @@ QStringList issue_lines(const Report& report)
             continue;
         }
         const QString level = issue.severity == Severity::Error ? Text::tr("Error") : Text::tr("Warning");
-        const QString message = QString::fromUtf8(issue.message.c_str());
-        lines << (issue.path.empty() ? QStringLiteral("%1: %2").arg(level, message)
-                                     : QStringLiteral("%1: %2: %3")
+        const QString message = engine_message(issue.code, QString::fromUtf8(issue.message.c_str()));
+        lines << (issue.path.empty() ? Text::tr("%1: %2").arg(level, message)
+                                     : Text::tr("%1: %2: %3")
                                            .arg(level, QString::fromUtf8(issue.path.c_str()), message));
     }
     return lines;

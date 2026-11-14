@@ -1,5 +1,6 @@
 add_executable(digzip
     args.cpp
+    i18n.cpp
     json.cpp
     main.cpp
     output.cpp

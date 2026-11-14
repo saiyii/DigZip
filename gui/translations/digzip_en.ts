@@ -4,7 +4,7 @@
 <context>
     <name>Report</name>
     <message numerus="yes">
-        <location filename="../../../../gui/support.cpp" line="100"/>
+        <location filename="../support.cpp" line="176"/>
         <source>Extracted %n file(s)</source>
         <translation>
             <numerusform>Extracted %n file</numerusform>
@@ -12,7 +12,7 @@
         </translation>
     </message>
     <message numerus="yes">
-        <location filename="../../../../gui/support.cpp" line="100"/>
+        <location filename="../support.cpp" line="176"/>
         <source>Verified %n file(s)</source>
         <translation>
             <numerusform>Verified %n file</numerusform>
@@ -20,7 +20,7 @@
         </translation>
     </message>
     <message numerus="yes">
-        <location filename="../../../../gui/support.cpp" line="109"/>
+        <location filename="../support.cpp" line="185"/>
         <source>, %n error(s)</source>
         <translation>
             <numerusform>, %n error</numerusform>
@@ -28,7 +28,7 @@
         </translation>
     </message>
     <message numerus="yes">
-        <location filename="../../../../gui/support.cpp" line="112"/>
+        <location filename="../support.cpp" line="188"/>
         <source>, %n warning(s)</source>
         <translation>
             <numerusform>, %n warning</numerusform>
@@ -39,7 +39,7 @@
 <context>
     <name>digzip::gui::MainWindow</name>
     <message numerus="yes">
-        <location filename="../../../../gui/main_window.cpp" line="317"/>
+        <location filename="../main_window.cpp" line="341"/>
         <source>%n entry(s), %1</source>
         <translation>
             <numerusform>%n entry, %1</numerusform>

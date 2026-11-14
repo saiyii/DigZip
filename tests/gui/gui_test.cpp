@@ -8,6 +8,8 @@
 #include <QDir>
 #include <QDropEvent>
 #include <QFile>
+#include <QMenuBar>
+#include <QTranslator>
 #include <QIcon>
 #include <QLocale>
 #include <QMimeData>
@@ -47,9 +49,47 @@ class GuiTest : public QObject {
 private slots:
     void initTestCase()
     {
+        // The tests check English texts, whatever the language of the machine.
+        qputenv("DIGZIP_LANG", "en");
+        QCOMPARE(install_translations(*QCoreApplication::instance()), QStringLiteral("en"));
         QLocale::setDefault(QLocale(QLocale::English, QLocale::UnitedStates));
-        install_translations(*QCoreApplication::instance());
     }
+
+    void the_language_follows_the_override_then_the_choice_then_the_system()
+    {
+        const QStringList french_system{QStringLiteral("fr-FR"), QStringLiteral("en-US")};
+        QCOMPARE(ui_language({}, {}, french_system), QStringLiteral("fr"));
+        QCOMPARE(ui_language({}, QStringLiteral("en"), french_system), QStringLiteral("en"));
+        QCOMPARE(ui_language(QStringLiteral("fr"), QStringLiteral("en"), {}), QStringLiteral("fr"));
+        QCOMPARE(ui_language(QStringLiteral("de"), {}, {QStringLiteral("de-DE"), QStringLiteral("fr-CH")}),
+                 QStringLiteral("fr"));
+        QCOMPARE(ui_language({}, {}, {QStringLiteral("ja-JP")}), QStringLiteral("en"));
+        QCOMPARE(ui_language({}, {}, {}), QStringLiteral("en"));
+    }
+
+    void french_translation_is_complete_and_used()
+    {
+        QTranslator french;
+        QVERIFY(french.load(QStringLiteral(":/i18n/digzip_fr.qm")));
+        QCoreApplication::installTranslator(&french);
+
+        Report report;
+        report.files = 1;
+        QVERIFY(summary(report, true).startsWith(QStringLiteral("1 fichier extrait")));
+        report.files = 3;
+        report.issues = {{Severity::Warning, ErrorCode::AlreadyExists, "a.txt", "already exists, skipped"}};
+        QVERIFY(summary(report, false).startsWith(QStringLiteral("3 fichiers vérifiés")));
+        QCOMPARE(issue_lines(report),
+                 QStringList{QStringLiteral("Avertissement : a.txt : existe déjà (already exists, skipped)")});
+        QCOMPARE(EntryModel().headerData(EntryModel::Size, Qt::Horizontal).toString(), QStringLiteral("Taille"));
+
+        MainWindow window;
+        QVERIFY(window.menuBar()->actions().first()->text() == QStringLiteral("&Fichier"));
+
+        QCoreApplication::removeTranslator(&french);
+        QCOMPARE(issue_lines(report), QStringList{QStringLiteral("Warning: a.txt: already exists, skipped")});
+    }
+
 
     void default_destination_strips_archive_extensions()
     {

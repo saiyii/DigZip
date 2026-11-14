@@ -112,6 +112,28 @@ std::optional<std::string> environment(const std::string& name)
 }
 #endif
 
+#ifdef _WIN32
+std::string system_language()
+{
+    wchar_t name[LOCALE_NAME_MAX_LENGTH] = {};
+    if (LCIDToLocaleName(MAKELCID(GetUserDefaultUILanguage(), SORT_DEFAULT), name, LOCALE_NAME_MAX_LENGTH, 0) == 0) {
+        return {};
+    }
+    return to_utf8(name).substr(0, 2);
+}
+#else
+std::string system_language()
+{
+    for (const char* variable : {"LANGUAGE", "LC_ALL", "LC_MESSAGES", "LANG"}) {
+        const auto value = environment(variable);
+        if (value && value->size() >= 2 && *value != "C" && *value != "POSIX" && value->compare(0, 2, "C.") != 0) {
+            return value->substr(0, 2);
+        }
+    }
+    return {};
+}
+#endif
+
 const std::atomic<bool>& install_interrupt_handler()
 {
     static_assert(std::atomic<bool>::is_always_lock_free, "used from a signal handler");

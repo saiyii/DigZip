@@ -5,6 +5,7 @@
 #include <digzip/version.hpp>
 
 #include <QAction>
+#include <QActionGroup>
 #include <QApplication>
 #include <QCloseEvent>
 #include <QComboBox>
@@ -103,6 +104,27 @@ void MainWindow::build_ui()
     archive_menu->addAction(extract_action_);
     archive_menu->addAction(test_action_);
     archive_menu->addAction(cancel_action_);
+    QMenu* options_menu = menuBar()->addMenu(tr("&Options"));
+    QMenu* language_menu = options_menu->addMenu(tr("&Language"));
+    auto* languages = new QActionGroup(this);
+    const QString saved = saved_language();
+    const std::pair<QString, QString> choices[] = {
+        {QString(), tr("System default")},
+        {QStringLiteral("en"), QStringLiteral("English")},
+        {QStringLiteral("fr"), QStringLiteral("Français")},
+    };
+    for (const auto& [code, name] : choices) {
+        QAction* action = language_menu->addAction(name);
+        action->setCheckable(true);
+        action->setChecked(code == saved);
+        languages->addAction(action);
+        connect(action, &QAction::triggered, this, [this, language = code] {
+            save_language(language);
+            QMessageBox::information(this, tr("Language"),
+                                     tr("DigZip will use this language the next time it starts."));
+        });
+    }
+
     QMenu* help_menu = menuBar()->addMenu(tr("&Help"));
     help_menu->addAction(tr("&About DigZip"), this, &MainWindow::about);
     help_menu->addAction(tr("About &Qt"), qApp, &QApplication::aboutQt);
@@ -333,7 +355,7 @@ void MainWindow::on_list_failed(ErrorCode code, const QString& message)
     destination_->clear();
     pages_->setCurrentIndex(0);
     setWindowTitle(QStringLiteral("DigZip"));
-    show_issues({message});
+    show_issues({engine_message(code, message)});
     set_idle(code == ErrorCode::Cancelled ? tr("Cancelled.") : tr("This archive cannot be opened."));
 }
 

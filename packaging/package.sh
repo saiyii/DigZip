@@ -71,7 +71,7 @@ package_gui() {
     case "$system" in
         windows)
             cp "$(find_binary digzip-gui.exe)" "$(find_binary digzip.exe)" "$dir/"
-            windeployqt --release --no-translations --no-system-d3d-compiler --no-system-dxc-compiler \
+            windeployqt --release --translations en,fr --no-system-d3d-compiler --no-system-dxc-compiler \
                 --no-opengl-sw --no-compiler-runtime --no-ffmpeg --no-network \
                 --skip-plugin-types tls,networkinformation,generic "$dir/digzip-gui.exe" > /dev/null
             # Qt uses the ICU of Windows (10 and later), which windeployqt copies from the system.
@@ -81,6 +81,9 @@ package_gui() {
         macos)
             cp -R "$(find "$build/bin" -maxdepth 2 -name DigZip.app -type d | head -n 1)" "$dir/"
             macdeployqt "$dir/DigZip.app" -always-overwrite
+            # Qt's own texts (standard buttons and dialogs) in the languages of the interface.
+            mkdir -p "$dir/DigZip.app/Contents/Resources/translations"
+            cp "$(qtpaths --query QT_INSTALL_TRANSLATIONS)"/qtbase_{en,fr}.qm "$dir/DigZip.app/Contents/Resources/translations/"
             codesign --force --deep --sign - "$dir/DigZip.app" # ad-hoc signature, required on Apple silicon
             ;;
         linux)

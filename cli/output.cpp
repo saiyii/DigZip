@@ -1,4 +1,5 @@
 #include "output.hpp"
+#include "i18n.hpp"
 #include "json.hpp"
 #include "platform.hpp"
 
@@ -45,18 +46,16 @@ std::string format_size(std::uint64_t bytes)
         value /= 1024;
         ++unit;
     }
-    std::ostringstream out;
     if (unit == 0) {
-        out << bytes << " B";
-    } else {
-        out << std::fixed << std::setprecision(1) << value << ' ' << units[unit];
+        return std::to_string(bytes) + " " + tr("B");
     }
-    return out.str();
-}
-
-std::string counted(std::uint64_t count, const char* one, const char* many)
-{
-    return std::to_string(count) + " " + (count == 1 ? one : many);
+    std::ostringstream out;
+    out << std::fixed << std::setprecision(1) << value;
+    std::string number = out.str();
+    if (language() == Language::French) {
+        std::replace(number.begin(), number.end(), '.', ',');
+    }
+    return number + " " + tr(units[unit]);
 }
 
 // Cuts UTF-8 text to at most `bytes` bytes without splitting a character.
@@ -184,16 +183,17 @@ void print_list(std::ostream& out, const digzip::ArchiveInfo& info)
     std::uint64_t directories = 0;
     std::uint64_t other = 0;
     std::uint64_t bytes = 0;
-    out << "Modified (UTC)       Type            Size  Name\n";
+    out << pad_right(tr("Modified (UTC)"), 21) << pad_right(tr("Type"), 9) << pad_left(tr("Size"), 12) << "  "
+        << tr("Name") << '\n';
     for (const digzip::Entry& e : info.entries) {
-        out << (e.mtime ? format_time(*e.mtime) : std::string(19, ' ')) << "  " << std::left << std::setw(9)
-            << digzip::to_string(e.type) << std::right << std::setw(12)
-            << (e.size ? std::to_string(*e.size) : std::string()) << "  " << e.path;
+        out << (e.mtime ? format_time(*e.mtime) : std::string(19, ' ')) << "  "
+            << pad_right(tr(digzip::to_string(e.type)), 9)
+            << pad_left(e.size ? std::to_string(*e.size) : std::string(), 12) << "  " << e.path;
         if (e.type == digzip::EntryType::Symlink || e.type == digzip::EntryType::Hardlink) {
             out << " -> " << e.link_target;
         }
         if (e.encrypted) {
-            out << "  [encrypted]";
+            out << "  " << tr("[encrypted]");
         }
         out << '\n';
         switch (e.type) {
@@ -209,9 +209,11 @@ void print_list(std::ostream& out, const digzip::ArchiveInfo& info)
             break;
         }
     }
-    out << digzip::to_string(info.format) << ": " << counted(files, "file", "files") << ", "
-        << counted(directories, "directory", "directories") << ", " << counted(other, "other entry", "other entries")
-        << ", " << format_size(bytes) << '\n';
+    out << fill(tr("{1}: {2}, {3}, {4}, {5}"),
+                {digzip::to_string(info.format), counted(files, "file", "files"),
+                 counted(directories, "directory", "directories"), counted(other, "other entry", "other entries"),
+                 format_size(bytes)})
+        << '\n';
 }
 
 void print_list_json(std::ostream& out, const std::filesystem::path& archive, const digzip::ArchiveInfo& info)
@@ -236,22 +238,20 @@ void print_report(std::ostream& out, std::ostream& err, const std::string& actio
         if (quiet && issue.severity == digzip::Severity::Warning) {
             continue;
         }
-        err << (issue.severity == digzip::Severity::Error ? "error: " : "warning: ");
-        if (!issue.path.empty()) {
-            err << issue.path << ": ";
-        }
-        err << issue.message << '\n';
+        const std::string message = describe(issue.code, issue.message);
+        err << (issue.severity == digzip::Severity::Error ? tr("error: ") : tr("warning: "))
+            << (issue.path.empty() ? message : fill(tr("{1}: {2}"), {issue.path, message})) << '\n';
     }
     if (quiet) {
         return;
     }
-    out << (action == "extract" ? "Extracted " : "Tested ") << counted(report.files, "file", "files") << ", "
-        << counted(report.directories, "directory", "directories") << ", " << counted(report.links, "link", "links")
-        << " (" << format_size(report.bytes) << ")";
+    out << fill(tr(action == "extract" ? "Extracted {1}, {2}, {3} ({4})" : "Tested {1}, {2}, {3} ({4})"),
+                {counted(report.files, "file", "files"), counted(report.directories, "directory", "directories"),
+                 counted(report.links, "link", "links"), format_size(report.bytes)});
     if (report.skipped != 0) {
-        out << ", " << report.skipped << " skipped";
+        out << ", " << counted(report.skipped, "entry skipped", "entries skipped");
     }
-    out << (report.ok() ? "" : " - with errors") << '\n';
+    out << (report.ok() ? "" : tr(" - with errors")) << '\n';
 }
 
 void print_report_json(std::ostream& out, const std::filesystem::path& archive, const std::string& action,
@@ -310,8 +310,8 @@ void ProgressBar::update(const digzip::Progress& progress)
 
     std::ostringstream line;
     line << std::setw(3) << percent << "% [" << std::string(static_cast<std::size_t>(filled), '#')
-         << std::string(static_cast<std::size_t>(kBar - filled), '.') << "] " << progress.entries << " entries, "
-         << format_size(progress.bytes) << "  ";
+         << std::string(static_cast<std::size_t>(kBar - filled), '.') << "] "
+         << counted(progress.entries, "entry", "entries") << ", " << format_size(progress.bytes) << "  ";
     std::string text = line.str();
     if (text.size() < width) {
         text += truncate_utf8(progress.current, width - text.size());

@@ -21,6 +21,9 @@ unsigned terminal_width();
 // Environment variable in UTF-8, if set.
 std::optional<std::string> environment(const std::string& name);
 
+// Two-letter code of the user's language ("fr", "en"...), or empty if unknown.
+std::string system_language();
+
 // Sets the returned flag on the first Ctrl+C (or Ctrl+Break, SIGTERM); a second one ends the process at once.
 const std::atomic<bool>& install_interrupt_handler();
 

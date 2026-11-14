@@ -1,4 +1,5 @@
 #include "args.hpp"
+#include "i18n.hpp"
 #include "platform.hpp"
 
 #include <algorithm>
@@ -15,7 +16,7 @@ namespace {
 std::uint64_t parse_number(const std::string& option, const std::string& text)
 {
     if (text.empty() || text.find_first_not_of("0123456789") != std::string::npos || text.size() > 19) {
-        throw UsageError(option + ": expected a number, got '" + text + "'");
+        throw UsageError(fill(tr("{1}: expected a number, got '{2}'"), {option, text}));
     }
     return std::stoull(text);
 }
@@ -38,11 +39,11 @@ std::uint64_t parse_size(const std::string& option, std::string text)
     } else if (suffix == "T" || suffix == "TB" || suffix == "TIB") {
         scale = 1ull << 40;
     } else if (!suffix.empty() && suffix != "B") {
-        throw UsageError(option + ": unknown size unit '" + suffix + "'");
+        throw UsageError(fill(tr("{1}: unknown size unit '{2}'"), {option, suffix}));
     }
     const std::uint64_t value = parse_number(option, text);
     if (value > std::numeric_limits<std::uint64_t>::max() / scale) {
-        throw UsageError(option + ": size too large");
+        throw UsageError(fill(tr("{1}: size too large"), {option}));
     }
     return value * scale;
 }
@@ -52,7 +53,7 @@ void read_password_file(const std::string& file, std::vector<std::string>& passw
 {
     std::ifstream in(path_from_utf8(file), std::ios::binary);
     if (!in) {
-        throw UsageError("--password-file: cannot read '" + file + "'");
+        throw UsageError(fill(tr("--password-file: cannot read '{1}'"), {file}));
     }
     std::string line;
     bool first = true;
@@ -81,7 +82,7 @@ Action action_of(const std::string& word)
     if (word == "test" || word == "t") {
         return Action::Test;
     }
-    throw UsageError("unknown command '" + word + "'");
+    throw UsageError(fill(tr("unknown command '{1}'"), {word}));
 }
 
 } // namespace
@@ -99,7 +100,7 @@ Command parse(const std::vector<std::string>& args)
         command.action = Action::Version;
         for (std::size_t i = 1; i < args.size(); ++i) {
             if (args[i] != "--json") {
-                throw UsageError("unexpected argument '" + args[i] + "'");
+                throw UsageError(fill(tr("unexpected argument '{1}'"), {args[i]}));
             }
             command.json = true;
         }
@@ -126,14 +127,14 @@ Command parse(const std::vector<std::string>& args)
                 return value;
             }
             if (i + 1 >= args.size()) {
-                throw UsageError(arg + ": missing value");
+                throw UsageError(fill(tr("{1}: missing value"), {arg}));
             }
             return args[++i];
         };
         const bool extracting = command.action == Action::Extract;
         const auto extract_only = [&] {
             if (!extracting) {
-                throw UsageError(arg + " is only valid with 'extract'");
+                throw UsageError(fill(tr("{1} is only valid with 'extract'"), {arg}));
             }
         };
 
@@ -157,7 +158,7 @@ Command parse(const std::vector<std::string>& args)
             } else if (policy == "rename") {
                 o.overwrite = digzip::Overwrite::Rename;
             } else {
-                throw UsageError("--overwrite: expected skip, replace or rename");
+                throw UsageError(tr("--overwrite: expected skip, replace or rename"));
             }
         } else if (arg == "-p" || arg == "--password") {
             o.passwords.push_back(next());
@@ -167,7 +168,7 @@ Command parse(const std::vector<std::string>& args)
             const std::string name = next();
             const auto password = environment(name);
             if (!password) {
-                throw UsageError("--password-env: the environment variable " + name + " is not set");
+                throw UsageError(fill(tr("--password-env: the environment variable {1} is not set"), {name}));
             }
             o.passwords.push_back(*password);
         } else if (arg == "--max-size") {
@@ -190,23 +191,23 @@ Command parse(const std::vector<std::string>& args)
         } else if (arg == "--no-progress") {
             command.progress = false;
         } else if (!arg.empty() && arg[0] == '-' && arg != "-") {
-            throw UsageError("unknown option '" + arg + "'");
+            throw UsageError(fill(tr("unknown option '{1}'"), {arg}));
         } else if (!have_archive) {
             command.archive = path_from_utf8(arg);
             have_archive = true;
         } else {
-            throw UsageError("unexpected argument '" + arg + "' (one archive at a time)");
+            throw UsageError(fill(tr("unexpected argument '{1}' (one archive at a time)"), {arg}));
         }
     }
     if (!have_archive) {
-        throw UsageError("missing archive");
+        throw UsageError(tr("missing archive"));
     }
     return command;
 }
 
 const char* help_text()
 {
-    return R"(DigZip - fast, safe archive extractor
+    static const char* const english = R"(DigZip - fast, safe archive extractor
 
 Usage:
   digzip list    <archive> [options]     List the entries (alias: l)
@@ -215,7 +216,7 @@ Usage:
   digzip --version [--json]
   digzip --help
 
-Formats: zip, 7z, tar, tar.gz/bz2/xz/zst, gz, bz2, xz, zst.
+Formats: zip, 7z, rar (RAR 5), tar, tar.gz/bz2/xz/zst, gz, bz2, xz, zst.
 
 Selection:
   --include PATTERN        Only entries matching PATTERN ('*' and '?'; repeatable).
@@ -241,9 +242,11 @@ Safety limits (0 disables one):
   --no-limits              Disable every limit.
 
 Output:
-  --json                   Machine-readable JSON on standard output.
+  --json                   Machine-readable JSON on standard output (always in English).
   -q, --quiet              Only report errors.
   --no-progress            No progress bar.
+
+Language: the system's, or set DIGZIP_LANG to "en" or "fr".
 
 Exit codes:
   0  success                    4  corrupt or unsupported data
@@ -251,6 +254,60 @@ Exit codes:
   2  command line error         6  password missing or wrong
   3  input/output error         130  interrupted (Ctrl+C)
 )";
+    static const char* const french = R"(DigZip - extracteur d'archives rapide et sûr
+
+Utilisation :
+  digzip list    <archive> [options]     Lister le contenu (alias : l)
+  digzip extract <archive> [options]     Extraire (alias : x)
+  digzip test    <archive> [options]     Tout décoder et vérifier les sommes de contrôle (alias : t)
+  digzip --version [--json]
+  digzip --help
+
+Formats : zip, 7z, rar (RAR 5), tar, tar.gz/bz2/xz/zst, gz, bz2, xz, zst.
+
+Sélection :
+  --include MOTIF          Seulement les éléments qui correspondent à MOTIF ('*' et '?' ;
+                           répétable). Un motif qui désigne un dossier sélectionne son contenu.
+  --exclude MOTIF          Ignorer les éléments qui correspondent à MOTIF (répétable).
+
+Extraction :
+  -o, --output DOSSIER     Dossier de destination (par défaut : le dossier courant).
+  --strip N                Retirer les N premiers dossiers de chaque chemin.
+  --overwrite POLITIQUE    Si un fichier existe : skip (garder, par défaut), replace
+                           (remplacer) ou rename (renommer le nouveau).
+
+Mots de passe (essayés dans l'ordre) :
+  -p, --password TEXTE     Un mot de passe (visible dans l'historique du shell ; préférez
+                           les deux options suivantes).
+  --password-file FICHIER  Un mot de passe par ligne.
+  --password-env NOM       Lire un mot de passe dans une variable d'environnement.
+
+Limites de sécurité (0 en désactive une) :
+  --max-size TAILLE        Taille totale décompressée (64G par défaut ; unités K, M, G, T).
+  --max-entries N          Nombre d'éléments (1000000 par défaut).
+  --max-ratio N            Taille décompressée / taille de l'archive (1000 par défaut).
+  --max-depth N            Niveaux de dossiers dans un chemin (256 par défaut).
+  --max-memory TAILLE      Mémoire par décodeur (1G par défaut).
+  --no-limits              Désactiver toutes les limites.
+
+Sortie :
+  --json                   JSON sur la sortie standard, pour les scripts (toujours en anglais).
+  -q, --quiet              N'afficher que les erreurs.
+  --no-progress            Pas de barre de progression.
+
+Langue : celle du système, ou DIGZIP_LANG à « en » ou « fr ».
+
+Codes de retour :
+  0    succès
+  1    succès avec avertissements
+  2    erreur de ligne de commande
+  3    erreur d'entrée/sortie
+  4    données endommagées ou non prises en charge
+  5    éléments refusés (sécurité) ou limite atteinte
+  6    mot de passe absent ou incorrect
+  130  interrompu (Ctrl+C)
+)";
+    return language() == Language::French ? french : english;
 }
 
 } // namespace cli

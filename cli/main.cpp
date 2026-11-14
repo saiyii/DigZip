@@ -1,4 +1,5 @@
 #include "args.hpp"
+#include "i18n.hpp"
 #include "output.hpp"
 #include "platform.hpp"
 
@@ -13,12 +14,13 @@ namespace {
 int run(const std::vector<std::string>& args)
 {
     cli::setup_console();
+    cli::set_language(cli::detect_language());
 
     cli::Command command;
     try {
         command = cli::parse(args);
     } catch (const cli::UsageError& e) {
-        std::cerr << "digzip: " << e.what() << "\nTry 'digzip --help'.\n";
+        std::cerr << "digzip: " << e.what() << '\n' << cli::tr("Try 'digzip --help'.") << '\n';
         return cli::kUsage;
     }
 
@@ -48,7 +50,7 @@ int run(const std::vector<std::string>& args)
             if (command.json) {
                 cli::print_error_json(std::cout, command.archive, e);
             } else {
-                std::cerr << "error: " << e.what() << '\n';
+                std::cerr << cli::tr("error: ") << cli::describe(e.code(), e.what()) << '\n';
             }
             return cli::exit_code(e.code());
         }
